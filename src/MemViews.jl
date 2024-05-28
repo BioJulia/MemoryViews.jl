@@ -1,7 +1,5 @@
 module MemViews
 
-module t
-
 #=
 Should ReinterpretArray be supported?
 
@@ -15,13 +13,29 @@ Docs of `unsafe_wrap` seems to suggest using that may cause UB.
 I think this is too difficult.
 =#
 
-# Problem: Dispatching on ::Union{Nothing, Type{<:MemView}} is ugly
-# Could we instead return either NotMemory or Memory{T <: MemView}, both <: MemoryTrait?
+"""
+    MemView{T, M} <: DenseVector{T}
 
-"Internal trait object for unsafe methods"
-struct Unsafe end
-const unsafe = Unsafe()
+View into a `Memory{T}`.
+`MemView`s are guaranteed to point to contiguous, valid CPU memory,
+except where they have size zero.
 
+The parameter `M` controls the mutability of the memory view,
+and may be `:mutable` or `:immutable`, corresponding to the
+The aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
+
+New types `T` which are backed by dense memory should implement:
+* `MemKind(x::T)`, if `T` is semantically a `DenseVector` equal
+  to its own memory view. Examples of this include `Vector`, `Memory`, and
+  `Base.CodeUnits{UInt8, String}`.
+* `MemView(x::T)` to construct a memory view from `x`. This should
+   always return a mutable view if `x` is mutable.
+
+If `MemView(x)` is implemented, then `ImmutableMemView(x)` will
+automatically work, even if `MemView(x)` returns a mutable view.
+
+See also: `MemKind`
+"""
 struct MemView{T, M} <: DenseVector{T}
     ref::MemoryRef{T}
     len::Int
@@ -42,164 +56,69 @@ ImmutableMemView(x::MutableMemView{T}) where T = ImmutableMemView{T}(x.ref, x.le
 ImmutableMemView(x::ImmutableMemView) = x
 MutableMemView(x::MutableMemView) = x
 
-# Convert an immutable to a mutable mem view
-MutableMemView{T}(::Unsafe, x::MemView{T}) where T = MutableMemView{T}(x.ref, x.len)
-
-ImmutableMemView(x) = ImmutableMemView(MemView(x))
-
-memview_type(::Any) = nothing
-
-################### Constructors ############################
-
-memview_type(::Array{T}) where T = MutableMemView{T}
-MemView(A::Array{T}) where T = MutableMemView{T}(A.ref, length(A))
-
-# Arrays
-memview_type(::Memory{T}) where T = MutableMemView{T}
-MemView(A::Memory{T}) where T = MutableMemView{T}(MemoryRef(A), length(A))
-
-# Strings etc
-# TODO: I don't know if the resulting view is safe.
-# Can the GC delete the string if it goes out of scope
-# while the memory still exists?
-function MemView(s::String)
-    ImmutableMemView{UInt8}(
-        MemoryRef(unsafe_wrap(Memory{UInt8}, s)),
-        ncodeunits(s)
-    )
+function ImmutableMemView(x)
+    m = MemView(x)
+    M = MemKind(x)
+    M isa AsMemory && typeassert(m, inner(M))
+    ImmutableMemView(m)
 end
 
-function MemView(s::SubString{String})
-    mem = unsafe_wrap(Memory{UInt8}, parent(s))
-    ImmutableMemView{UInt8}(MemoryRef(mem, s.offset + 1), s.ncodeunits)
-end
+"""
+    MemKind
 
-memview_type(::Base.CodeUnits{UInt8, <:Union{String, SubString{String}}}) = ImmutableMemView{UInt8}
-MemView(s::Base.CodeUnits) = MemView(s.s)
+Trait object used to signal if an instance can be represented by a `MemView`.
+If so, `MemKind(x)` should return an instance of `AsMemory`,
+else `NotMemory()`. The default implementation returns `NotMemory()`.
 
-# TODO: Identical to FastContiguousSubArray in Base
-const ContiguousSubArray = SubArray{T, N, P, I, true} where {T, N, P, I<:Union{Tuple{Vararg{Real}}, Tuple{AbstractUnitRange, Vararg{Any}}}}
+If `MemKind(x) isa AsMemory{T}`, the following must hold:
+1. `T` is a concrete subtype of `MemView`. To obtain `T` from an `m::AsMemory{T}`,
+    use `inner(m)`.
+2. `MemView(x)` is a valid instance of `T`.
+3. `MemView(x) == x`.
 
-memview_type(s::ContiguousSubArray{T, N, P}) where {T, N, P} = memview_type(parent(s)::P)
+Some objects can be turned into `MemView` without being `AsMemory`.
+For example, `MemView(::String)` returns a valid `MemView` even though
+`MemKind(::String) === NotMemory()`.
+This is because strings have different semantics than mem views - the latter
+is a dense `AbstractArray` while strings are not, and so the third requirement
+`MemView(x::String) == x` does not hold.
 
-function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
-    v = MemView(parent(s)::P)
-    L = length(s)
-    memview_type(s)(MemoryRef(v.ref.mem, 1 + s.offset1), L)
-end
+See also: `MemView`
+"""
+abstract type MemKind end
 
-#################################
+"""
+    NotMemory <: MemKind
 
+See `MemKind`
+"""
+struct NotMemory <: MemKind end
 
-function Base.setindex!(v::MutableMemView{T}, x, i::Int) where T
-    @boundscheck i ∈ 1:v.len || throw(BoundsError(v, i)) || throw(BoundsError(v, (i,)))
-    Base.memoryrefset!(Base.memoryref(v.ref, i, false), x isa T ? x : convert(T,x)::T, :not_atomic, false)
-    return v
-end
+"""
+    AsMemory{T <: MemView} <: MemKind
 
-Base.length(v::MemView) = v.len
-Base.size(v::MemView) = (length(v),)
-Base.IndexStyle(::Type{<:MemView}) = Base.IndexLinear()
-
-function Base.iterate(x::MemView, i::Int=1)
-    i > length(x) && return nothing
-    (@inbounds x[i], i + 1)
-end
-
-function Base.getindex(v::MemView, i::Integer)
-    @boundscheck i ∈ 1:v.len || throw(BoundsError(v, i))
-    Base.memoryrefget(Base.memoryref(v.ref, i, false), :not_atomic, false)
-end
-
-# TODO: What do we want to do here?
-Base.:(==)(a::MemView, b::MemView) = throw(MethodError(==, (a, b)))
-Base.hash(x::MemView, u::UInt) = throw(MethodError(hash, (x, u)))
-
-Base.pointer(x::MemView{T}) where T = Ptr{T}(pointer(x.ref))
-Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where T = pointer(v)
-Base.elsize(::Type{<:MemView{T}}) where T = Base.elsize(Memory{T})
-Base.sizeof(x::MemView) = sizeof(eltype(x)) * length(x)
-Base.strides(::MemView) = (1,)
-
-
-
-#################################### Example
-
-my_findfirst(p, haystack) = my_findnext(p, haystack, firstindex(haystack))
-
-function my_findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    haystack,
-    k
-)
-    _my_findnext(memview_type(haystack), p, haystack, k)
-end
-
-function my_findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, <:AbstractChar},
-    s::Union{String, SubString{String}},
-    i::Int,
-)
-    i < 1 && throw(BoundsError(s, i))
-    c = Char(p.x)::Char
-    byte = (reinterpret(UInt32, c) >> 24) % UInt8
-    mem = MemView(s)
-    isascii(c) && return find_next_byte(byte, mem, i)
-    while true
-        i = find_next_byte(byte, mem, i)
-        i === nothing && return nothing
-        isvalid(s, i) && s[i] == c && return i
-        i += 1
+See `MemKind`
+"""
+struct AsMemory{T <: MemView} <: MemKind
+    function AsMemory{T}() where T
+        if !isconcretetype(T)
+            error("In AsMemory{T}, T must be concrete")
+        end
+        new{T}()
     end
-    nothing
 end
+AsMemory(T::Type{<:MemView}) = AsMemory{T}()
 
-function _my_findnext(::Union{Nothing, Type{<:MemView}}, p, haystack, i)
-    lst = lastindex(haystack)
-    while i ≤ lst
-        p(haystack[i]) && return i
-        i = nextind(haystack, i)
-    end
-    nothing
-end
+"""
+    inner(::AsMemory{T})
 
-function _my_findnext(
-    ::Type{<:MemView{UInt8}},
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    haystack,
-    i
-)
-    ind = Int(i)::Int - Int(firstindex(haystack))::Int + 1
-    ind < 1 && throw(BoundsError(haystack, i))
-    find_next_byte(p.x, ImmutableMemView(haystack), ind)
-end
+Return `T` from `AsMemory{T}`.
+"""
+inner(::AsMemory{T}) where T = T
 
-function find_next_byte(needle::UInt8, haystack::ImmutableMemView{UInt8}, i::Int)
-    len = length(haystack) - i + 1
-    len < 1 && return nothing
-    ulen = len % UInt
-    GC.@preserve haystack begin
-        ptr = pointer(haystack, i)
-        p = @ccall memchr(ptr::Ptr{UInt8}, needle::UInt8, ulen::UInt)::Ptr{Nothing}
-    end 
-    p == C_NULL ? nothing : (p - ptr + i) % Int
-end
+MemKind(::Any) = NotMemory()
 
-using Test
-
-@testset "Various uses of byte_search" begin
-    @test my_findfirst(==(0x01), [0x01, 0x02, 0x03]) == 1
-    @test my_findfirst(==(0x62), view(codeunits("abcd"), 2:3)) == 1
-
-    @test my_findfirst(==('c'), "abcde") == 3
-    @test my_findfirst(==('δ'), "αβγδϵ") == 7
-    
-    @test my_findfirst(==(0x62), "abcdef") === nothing
-    @test my_findfirst(==(0x01), [1, 2, 3]) == 1
-    @test my_findfirst(==(0x01), view([0x01, 0x02, 0x03], 1:2:3)) == 1
-end
+include("construction.jl")
+include("basic.jl")
 
 end # module
-
-
-end # module MemViews
