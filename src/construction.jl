@@ -1,9 +1,9 @@
 # Array
-MemKind(::Array{T}) where T = AsMemory(MutableMemView{T})
+MemKind(::Array{T}) where T = IsMemory(MutableMemView{T})
 MemView(A::Array{T}) where T = MutableMemView{T}(A.ref, length(A))
 
 # Memory
-MemKind(::Memory{T}) where T = AsMemory(MutableMemView{T})
+MemKind(::Memory{T}) where T = IsMemory(MutableMemView{T})
 MemView(A::Memory{T}) where T = MutableMemView{T}(MemoryRef(A), length(A))
 
 # Strings
@@ -22,7 +22,7 @@ function MemView(s::SubString{String})
     ImmutableMemView{UInt8}(MemoryRef(mem, s.offset + 1), ncodeunits(s))
 end
 
-MemKind(::Base.CodeUnits{UInt8, <:Union{String, SubString{String}}}) = AsMemory(ImmutableMemView{UInt8})
+MemKind(::Base.CodeUnits{UInt8, <:Union{String, SubString{String}}}) = IsMemory(ImmutableMemView{UInt8})
 MemView(s::Base.CodeUnits) = MemView(s.s)
 
 # SubArrays
@@ -34,5 +34,5 @@ MemKind(s::ContiguousSubArray{T, N, P}) where {T, N, P} = MemKind(parent(s)::P)
 function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     v = MemView(parent(s)::P)
     L = length(s)
-    inner(MemKind(s))(MemoryRef(v.ref.mem, 1 + s.offset1), L)
+    inner(MemKind(s))(MemoryRef(v.ref, 1 + s.offset1), L)
 end

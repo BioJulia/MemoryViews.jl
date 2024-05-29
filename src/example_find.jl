@@ -21,7 +21,7 @@ function my_findnext(p, haystack, i)
     nothing
 end
 
-# String implementation - strings are not AsMemory, but
+# String implementation - strings are not IsMemory, but
 # we can still use the MemViews interface to implement
 # char searching.
 function my_findnext(
@@ -49,13 +49,13 @@ function my_findnext(
     nothing
 end
 
-# Fallback - if the haystack is not AsMemory of bytes, we invoke the fallback definiion
+# Fallback - if the haystack is not IsMemory of bytes, we invoke the fallback definiion
 _my_findnext(::MemKind, p, haystack, i) = @invoke my_findnext(p::Any, haystack::Any, i::Any)
 
 # If it is bytes, we can convert the haystack to an ImmutableMemView,
 # and use the memory view's optimised method
 function _my_findnext(
-    ::AsMemory{<:MemView{UInt8}},
+    ::IsMemory{<:MemView{UInt8}},
     p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
     haystack,
     i

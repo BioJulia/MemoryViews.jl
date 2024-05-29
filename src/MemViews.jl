@@ -1,5 +1,7 @@
 module MemViews
 
+export MemView, ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
+
 #=
 Should ReinterpretArray be supported?
 
@@ -59,7 +61,7 @@ MutableMemView(x::MutableMemView) = x
 function ImmutableMemView(x)
     m = MemView(x)
     M = MemKind(x)
-    M isa AsMemory && typeassert(m, inner(M))
+    M isa IsMemory && typeassert(m, inner(M))
     ImmutableMemView(m)
 end
 
@@ -67,16 +69,16 @@ end
     MemKind
 
 Trait object used to signal if an instance can be represented by a `MemView`.
-If so, `MemKind(x)` should return an instance of `AsMemory`,
+If so, `MemKind(x)` should return an instance of `IsMemory`,
 else `NotMemory()`. The default implementation returns `NotMemory()`.
 
-If `MemKind(x) isa AsMemory{T}`, the following must hold:
-1. `T` is a concrete subtype of `MemView`. To obtain `T` from an `m::AsMemory{T}`,
+If `MemKind(x) isa IsMemory{T}`, the following must hold:
+1. `T` is a concrete subtype of `MemView`. To obtain `T` from an `m::IsMemory{T}`,
     use `inner(m)`.
 2. `MemView(x)` is a valid instance of `T`.
 3. `MemView(x) == x`.
 
-Some objects can be turned into `MemView` without being `AsMemory`.
+Some objects can be turned into `MemView` without being `IsMemory`.
 For example, `MemView(::String)` returns a valid `MemView` even though
 `MemKind(::String) === NotMemory()`.
 This is because strings have different semantics than mem views - the latter
@@ -95,26 +97,26 @@ See `MemKind`
 struct NotMemory <: MemKind end
 
 """
-    AsMemory{T <: MemView} <: MemKind
+    IsMemory{T <: MemView} <: MemKind
 
 See `MemKind`
 """
-struct AsMemory{T <: MemView} <: MemKind
-    function AsMemory{T}() where T
+struct IsMemory{T <: MemView} <: MemKind
+    function IsMemory{T}() where T
         if !isconcretetype(T)
-            error("In AsMemory{T}, T must be concrete")
+            error("In IsMemory{T}, T must be concrete")
         end
         new{T}()
     end
 end
-AsMemory(T::Type{<:MemView}) = AsMemory{T}()
+IsMemory(T::Type{<:MemView}) = IsMemory{T}()
 
 """
-    inner(::AsMemory{T})
+    inner(::IsMemory{T})
 
-Return `T` from `AsMemory{T}`.
+Return `T` from `IsMemory{T}`.
 """
-inner(::AsMemory{T}) where T = T
+inner(::IsMemory{T}) where T = T
 
 MemKind(::Any) = NotMemory()
 
