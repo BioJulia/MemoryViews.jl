@@ -1,6 +1,11 @@
-function Base.setindex!(v::MutableMemView{T}, x, i::Int) where T
+function Base.setindex!(v::MutableMemView{T}, x, i::Int) where {T}
     @boundscheck checkbounds(v, i)
-    Base.memoryrefset!(Base.memoryref(v.ref, i, false), x isa T ? x : convert(T,x)::T, :not_atomic, false)
+    Base.memoryrefset!(
+        Base.memoryref(v.ref, i, false),
+        x isa T ? x : convert(T, x)::T,
+        :not_atomic,
+        false,
+    )
     return v
 end
 
@@ -17,9 +22,9 @@ function Base.getindex(v::MemView, i::Integer)
     Base.memoryrefget(Base.memoryref(v.ref, i, false), :not_atomic, false)
 end
 
-Base.pointer(x::MemView{T}) where T = Ptr{T}(pointer(x.ref))
-Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where T = pointer(v)
-Base.elsize(::Type{<:MemView{T}}) where T = Base.elsize(Memory{T})
+Base.pointer(x::MemView{T}) where {T} = Ptr{T}(pointer(x.ref))
+Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where {T} = pointer(v)
+Base.elsize(::Type{<:MemView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemView) = sizeof(eltype(x)) * length(x)
 Base.strides(::MemView) = (1,)
 

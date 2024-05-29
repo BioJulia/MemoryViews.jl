@@ -3,11 +3,7 @@ my_findfirst(p, haystack) = my_findnext(p, haystack, firstindex(haystack))
 
 # When the predicate is looking for a single byte, we dispatch to see
 # if the haystack is a chunk of memory. In that case, we can use memchr
-function my_findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    haystack,
-    k,
-)
+function my_findnext(p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8}, haystack, k)
     _my_findnext(MemKind(haystack), p, haystack, k)
 end
 
@@ -58,7 +54,7 @@ function _my_findnext(
     ::IsMemory{<:MemView{UInt8}},
     p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
     haystack,
-    i
+    i,
 )
     ind = Int(i)::Int - Int(firstindex(haystack))::Int + 1
     ind < 1 && throw(BoundsError(haystack, i))
@@ -73,7 +69,7 @@ function find_next_byte(needle::UInt8, haystack::ImmutableMemView{UInt8}, i::Int
     GC.@preserve haystack begin
         ptr = pointer(haystack, i)
         p = @ccall memchr(ptr::Ptr{UInt8}, needle::UInt8, ulen::UInt)::Ptr{Nothing}
-    end 
+    end
     p == C_NULL ? nothing : (p - ptr + i) % Int
 end
 
@@ -85,7 +81,7 @@ using Test
 
     @test my_findfirst(==('c'), "abcde") == 3
     @test my_findfirst(==('δ'), "αβγδϵ") == 7
-    
+
     @test my_findfirst(==(0x62), "abcdef") === nothing
     @test my_findfirst(==(0x01), [1, 2, 3]) == 1
     @test my_findfirst(==(0x01), view([0x01, 0x02, 0x03], 1:2:3)) == 1

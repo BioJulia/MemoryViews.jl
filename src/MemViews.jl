@@ -2,19 +2,6 @@ module MemViews
 
 export MemView, ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
 
-#=
-Should ReinterpretArray be supported?
-
-That requires two params for memviews - for the outer and inner element type.
-Dispatch on whether the two types are the same for get/setindex.
-Needs a check for bitstypes only when instantiating with different parameters
-
-Setindex is a little difficult - how to implement if the target type is smaller than the source type?
-Docs of `unsafe_wrap` seems to suggest using that may cause UB.
-
-I think this is too difficult.
-=#
-
 """
     MemView{T, M} <: DenseVector{T}
 
@@ -27,11 +14,11 @@ and may be `:mutable` or `:immutable`, corresponding to the
 The aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
 
 New types `T` which are backed by dense memory should implement:
-* `MemKind(x::T)`, if `T` is semantically a `DenseVector` equal
-  to its own memory view. Examples of this include `Vector`, `Memory`, and
-  `Base.CodeUnits{UInt8, String}`.
 * `MemView(x::T)` to construct a memory view from `x`. This should
    always return a mutable view if `x` is mutable.
+* `MemKind(x::T)`, if `T` is semantically equal to its own memory view.
+  Examples of this include `Vector`, `Memory`, and
+  `Base.CodeUnits{UInt8, String}`.
 
 If `MemView(x)` is implemented, then `ImmutableMemView(x)` will
 automatically work, even if `MemView(x)` returns a mutable view.
@@ -54,7 +41,7 @@ const MutableMemView{T} = MemView{T, :mutable}
 const ImmutableMemView{T} = MemView{T, :immutable}
 
 # Mutable mem views can turn into immutable ones, but not vice versa
-ImmutableMemView(x::MutableMemView{T}) where T = ImmutableMemView{T}(x.ref, x.len)
+ImmutableMemView(x::MutableMemView{T}) where {T} = ImmutableMemView{T}(x.ref, x.len)
 ImmutableMemView(x::ImmutableMemView) = x
 MutableMemView(x::MutableMemView) = x
 
@@ -68,7 +55,7 @@ end
 """
     MemKind
 
-Trait object used to signal if an instance can be represented by a `MemView`.
+Trait object used to signal if an instance is semantically equal to its own `MemView`.
 If so, `MemKind(x)` should return an instance of `IsMemory`,
 else `NotMemory()`. The default implementation returns `NotMemory()`.
 
@@ -102,10 +89,8 @@ struct NotMemory <: MemKind end
 See `MemKind`
 """
 struct IsMemory{T <: MemView} <: MemKind
-    function IsMemory{T}() where T
-        if !isconcretetype(T)
-            error("In IsMemory{T}, T must be concrete")
-        end
+    function IsMemory{T}() where {T}
+        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
         new{T}()
     end
 end
@@ -114,9 +99,9 @@ IsMemory(T::Type{<:MemView}) = IsMemory{T}()
 """
     inner(::IsMemory{T})
 
-Return `T` from `IsMemory{T}`.
+Return `T` from an `IsMemory{T}`.
 """
-inner(::IsMemory{T}) where T = T
+inner(::IsMemory{T}) where {T} = T
 
 MemKind(::Any) = NotMemory()
 
