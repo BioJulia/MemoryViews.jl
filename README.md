@@ -1,5 +1,6 @@
 # MemViews.jl
-This is an experimental repo to work out an interface for a memory view in Julia.
+This is an experimental repo to work out an interface for a (possibly internal, unexported)
+memory view type for use in Base Julia.
 
 * See [the related issue on JuliaLang/julia](https://github.com/JuliaLang/julia/issues/54581).
 * See the [type definitions](https://github.com/jakobnissen/MemViews.jl/blob/master/src/MemViews.jl)
