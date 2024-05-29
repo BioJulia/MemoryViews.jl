@@ -1,9 +1,12 @@
 # MemViews.jl
 This is an experimental repo to work out an interface for a memory view in Julia.
-See [the related issue on JuliaLang/julia](https://github.com/JuliaLang/julia/issues/54581).
+
+* See [the related issue on JuliaLang/julia](https://github.com/JuliaLang/julia/issues/54581).
+* See the [type definitions](https://github.com/jakobnissen/MemViews.jl/blob/master/src/MemViews.jl)
+* See [example code making use of MemViews](https://github.com/jakobnissen/MemViews.jl/blob/master/src/example_find.jl)
 
 ## Overview
-The `MemView{T, M}` type represents a chunk of contiguous memory in CPU address space.
+The `MemView{T, M}` type represents a chunk of contiguous non-atomic memory in CPU address space.
 The `MemKind` trait type is used for dispatch to correctly select methods that can
 work on memory directly.
 The `M` parameter of `MemView{T, M}` may be `:mutable` or `:immutable`, corresponding
@@ -21,7 +24,7 @@ This will allow methods to opt-in to creating memory views from objects of type 
 and operating on the views.
 
 ## Writing methods using `MemView`
-For an example, see `src/example_find.jl`
+For an example, see [`src/example_find.jl`](https://github.com/jakobnissen/MemViews.jl/blob/master/src/example_find.jl)
 
 Typically, it makes sense to implement the low-level memory manipulation of an object
 with functions that take `MemView`s. This has a few advantages:
