@@ -62,7 +62,7 @@ Convert a memory view into a mutable memory view.
 Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
-MutableMemView(::Unsafe, x::MemView{T}) where T = MemView{T, :mutable}(x.ref, x.len)
+MutableMemView(::Unsafe, x::MemView{T}) where {T} = MemView{T, :mutable}(x.ref, x.len)
 
 """
     as_bytes(::Unsafe, x::MemView)

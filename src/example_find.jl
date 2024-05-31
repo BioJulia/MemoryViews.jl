@@ -89,5 +89,6 @@ using Test
 
     # Note that even quite complex nested types will correctly dispatch to
     # the memchr implementation with little overhead
-    @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) == 5
+    @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) ==
+          5
 end

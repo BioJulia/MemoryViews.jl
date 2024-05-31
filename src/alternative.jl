@@ -58,7 +58,9 @@ const ContiguousSubArray = SubArray{
 
 # Constructors
 MemView(A::Union{Memory{T}, Array{T}}) where {T} = MutableMemView{T}(pointer(A), length(A))
-MemView(s::Union{String, SubString{String}}) = ImmutableMemView{UInt8}(pointer(s), ncodeunits(s))
+function MemView(s::Union{String, SubString{String}})
+    ImmutableMemView{UInt8}(pointer(s), ncodeunits(s))
+end
 MemView(s::Base.CodeUnits) = MemView(s.s)
 function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     v = MemView(parent(s)::P)
@@ -181,7 +183,11 @@ function find_next_byte(needle::UInt8, mem::MemView{UInt8}, i::Int)
     len = mem.len - i + 1
     len < 1 && return nothing
     ulen = len % UInt
-    p = @ccall memchr((mem.ptr + i - 1)::Ptr{UInt8}, needle::UInt8, ulen::UInt)::Ptr{Nothing}
+    p = @ccall memchr(
+        (mem.ptr + i - 1)::Ptr{UInt8},
+        needle::UInt8,
+        ulen::UInt,
+    )::Ptr{Nothing}
     p == C_NULL ? nothing : (p - mem.ptr + 1) % Int
 end
 
@@ -200,8 +206,8 @@ using Test
 
     # Note that even quite complex nested types will correctly dispatch to
     # the memchr implementation with little overhead
-    @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) == 5
+    @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) ==
+          5
 end
-
 
 end # module

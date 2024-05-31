@@ -3,8 +3,13 @@ This is an experimental repo to work out an interface for a (possibly internal, 
 memory view type for use in Base Julia.
 
 * See [the related issue on JuliaLang/julia](https://github.com/JuliaLang/julia/issues/54581).
+
+#### Proposal with MemView backed by MemoryRef
 * See the [type definitions](https://github.com/jakobnissen/MemViews.jl/blob/master/src/MemViews.jl)
 * See [example code making use of MemViews](https://github.com/jakobnissen/MemViews.jl/blob/master/src/example_find.jl)
+
+#### Proposal with MemView backed by pointers
+* [Same types and example code as above](https://github.com/jakobnissen/MemViews.jl/blob/master/src/alternative.jl)
 
 ## Overview
 The `MemView{T, M}` type represents a chunk of contiguous non-atomic memory in CPU address space.
@@ -80,3 +85,20 @@ MemView type directly, but it's nicer to dispatch on `::MemKind` than on `::Unio
 * I can't figure out how to support reinterpreted arrays.
   Any way I can think of doing so will sigificantly complicate `MemView`, which takes away some of
   the appeal of this type's simplicity.
+
+## Alternative proposal
+In `src/alternative.jl`, there is an implementation where a `MemView` is just a pointer and a length.
+This makes it nearly to `Random.UnsafeView`, however, compared to `UnsafeView`, this propsal have:
+
+* The `MemKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_
+* The distinction between mutable and immutable memory views
+
+#### Advantages
+* Pointer-based memviews are cheaper to construct, and do not allocate for strings, unlike `Memory`
+* Their interaction with the GC is simpler (as there is no interaction)
+
+#### Disadvantages
+* Code using pointer-based memviews must make sure to only have the views exist inside `GC.@preserve` blocks,
+  which is annoying and will almost certainly be violated accidentally somewhere
+* We can't use advantages of the existing `Memory` infrasrtructure, e.g. having a `GenericMemRef` which supports
+  atomic memory.
