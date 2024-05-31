@@ -22,7 +22,7 @@ function Base.getindex(v::MemView, i::Integer)
     Base.memoryrefget(Base.memoryref(v.ref, i, false), :not_atomic, false)
 end
 
-Base.pointer(x::MemView{T}) where {T} = Ptr{T}(pointer(x.ref))
+Base.pointer(x::MemView{T}) where {T} = pointer(x.ref)
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where {T} = pointer(v)
 Base.elsize(::Type{<:MemView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemView) = sizeof(eltype(x)) * length(x)

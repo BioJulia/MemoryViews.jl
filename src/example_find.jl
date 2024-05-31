@@ -61,7 +61,8 @@ function _my_findnext(
     find_next_byte(p.x, ImmutableMemView(haystack), ind)
 end
 
-# Wrapper around memchr
+# Wrapper around memchr.
+# The use of concrete types makes this unsafe code easier to review and statically check.
 function find_next_byte(needle::UInt8, haystack::ImmutableMemView{UInt8}, i::Int)
     len = length(haystack) - i + 1
     len < 1 && return nothing
@@ -85,4 +86,8 @@ using Test
     @test my_findfirst(==(0x62), "abcdef") === nothing
     @test my_findfirst(==(0x01), [1, 2, 3]) == 1
     @test my_findfirst(==(0x01), view([0x01, 0x02, 0x03], 1:2:3)) == 1
+
+    # Note that even quite complex nested types will correctly dispatch to
+    # the memchr implementation with little overhead
+    @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) == 5
 end

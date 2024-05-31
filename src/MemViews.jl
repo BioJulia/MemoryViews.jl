@@ -2,6 +2,9 @@ module MemViews
 
 export MemView, ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
 
+struct Unsafe end
+const unsafe = Unsafe()
+
 """
     MemView{T, M} <: DenseVector{T}
 
@@ -51,6 +54,33 @@ function ImmutableMemView(x)
     M isa IsMemory && typeassert(m, inner(M))
     ImmutableMemView(m)
 end
+
+"""
+    MutableMemView(::Unsafe, x::MemView)
+
+Convert a memory view into a mutable memory view.
+Note that it may cause undefined behaviour, if supposedly immutable data
+is observed to be mutated.
+"""
+MutableMemView(::Unsafe, x::MemView{T}) where T = MemView{T, :mutable}(x.ref, x.len)
+
+"""
+    as_bytes(::Unsafe, x::MemView)
+
+Convert a `MemView{T}` into a corresponding `MemView{UInt8}`.
+If `T` is not a bitstype, throw an error.
+Mutating the resulting view modifies any instances of `T`
+in the original memory, which may cause some user-defined invariants
+to no longer hold for these instances.
+Note that this is allowed under C's strict aliasing rules.
+"""
+function as_bytes(::Unsafe, v::MemView{T, M}) where {T, M}
+    isbitstype(T) || error("as_bytes only works on bitstypes element type")
+    sz = sizeof(v)
+    GC.@preserve v mem = unsafe_wrap(Memory{UInt8}, Ptr{UInt8}(pointer(v)), sz)
+    MemView{UInt8, M}(MemoryRef(mem), sz)
+end
+as_bytes(::Unsafe, v::MemView{UInt8}) = v
 
 """
     MemKind
