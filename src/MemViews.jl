@@ -1,8 +1,17 @@
 module MemViews
 
-export MemView, ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
+export MemView,
+    ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner, as_bytes
 
+"""
+    Unsafe
+
+Trait object used to dispatch to unsafe methods.
+The `MemViews.unsafe` instance is the singleton instance of this type.
+"""
 struct Unsafe end
+
+"Singleton instance of the trait type `Unsafe`"
 const unsafe = Unsafe()
 
 """
@@ -21,7 +30,7 @@ New types `T` which are backed by dense memory should implement:
    always return a mutable view if `x` is mutable.
 * `MemKind(x::T)`, if `T` is semantically equal to its own memory view.
   Examples of this include `Vector`, `Memory`, and
-  `Base.CodeUnits{UInt8, String}`.
+  `Base.CodeUnits{UInt8, String}`. If so, `x == MemView(x)` should hold.
 
 If `MemView(x)` is implemented, then `ImmutableMemView(x)` will
 automatically work, even if `MemView(x)` returns a mutable view.
@@ -44,16 +53,10 @@ const MutableMemView{T} = MemView{T, :mutable}
 const ImmutableMemView{T} = MemView{T, :immutable}
 
 # Mutable mem views can turn into immutable ones, but not vice versa
+ImmutableMemView(x) = ImmutableMemView(MemView(x)::MemView)
 ImmutableMemView(x::MutableMemView{T}) where {T} = ImmutableMemView{T}(x.ref, x.len)
 ImmutableMemView(x::ImmutableMemView) = x
 MutableMemView(x::MutableMemView) = x
-
-function ImmutableMemView(x)
-    m = MemView(x)
-    M = MemKind(x)
-    M isa IsMemory && typeassert(m, inner(M))
-    ImmutableMemView(m)
-end
 
 """
     MutableMemView(::Unsafe, x::MemView)
@@ -64,6 +67,8 @@ is observed to be mutated.
 """
 MutableMemView(::Unsafe, x::MemView{T}) where {T} = MemView{T, :mutable}(x.ref, x.len)
 
+# TODO: I believe this is allowed under C's rules. It may be UB under Julia's.
+# In that case, these methods should just be removed.
 """
     as_bytes(::Unsafe, x::MemView)
 
@@ -87,7 +92,7 @@ as_bytes(::Unsafe, v::MemView{UInt8}) = v
 
 Trait object used to signal if an instance is semantically equal to its own `MemView`.
 If so, `MemKind(x)` should return an instance of `IsMemory`,
-else `NotMemory()`. The default implementation returns `NotMemory()`.
+else `NotMemory()`. The default implementation `MemKind(::Any)` returns `NotMemory()`.
 
 If `MemKind(x) isa IsMemory{T}`, the following must hold:
 1. `T` is a concrete subtype of `MemView`. To obtain `T` from an `m::IsMemory{T}`,

@@ -28,5 +28,5 @@ const ContiguousSubArray = SubArray{
 
 MemKind(s::ContiguousSubArray{T, N, P}) where {T, N, P} = MemKind(parent(s)::P)
 function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
-    MemView(parent(s)::P)[only(parentindices(s))]
+    (MemView(parent(s)::P)::MemView)[only(parentindices(s))]
 end
