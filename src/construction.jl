@@ -5,7 +5,23 @@ MemView(A::Array{T}) where {T} = MutableMemView{T}(A.ref, length(A))
 
 # Strings
 MemView(s::String) = ImmutableMemView(unsafe_wrap(Memory{UInt8}, s))
-MemView(s::SubString) = MemView(parent(s))[only(parentindices(s))]
+function MemView(s::SubString)
+    memview = MemView(parent(s))
+    codesize = sizeof(codeunit(s))
+    offset = codesize * s.offset
+    len = s.ncodeunits * codesize
+    mem = memview.ref.mem
+    span = (offset + 1):len
+    @boundscheck checkbounds(mem, span)
+    @inbounds typeof(memview)(MemoryRef(mem, offset + 1), s.ncodeunits * codesize)
+end
+
+# Special implementation for SubString{String}, which we can guarantee never
+# has out of bounds indices, unless the user previously misused @inbounds
+function MemView(s::SubString{String})
+    memview = MemView(parent(s))
+    ImmutableMemView{UInt8}(Base.memoryref(memview.ref, s.offset + 1, false), s.ncodeunits)
+end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
 # implements MemView, which some AbstractStrings may not
@@ -28,5 +44,8 @@ const ContiguousSubArray = SubArray{
 
 MemKind(s::ContiguousSubArray{T, N, P}) where {T, N, P} = MemKind(parent(s)::P)
 function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
-    (MemView(parent(s)::P)::MemView)[only(parentindices(s))]
+    memview = MemView(parent(s)::P)
+    inds = only(parentindices(s))
+    @boundscheck checkbounds(memview.ref.mem, inds)
+    @inbounds memview[inds]
 end
