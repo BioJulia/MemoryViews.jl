@@ -6,10 +6,7 @@ memory view type for use in Base Julia.
 
 #### Proposal with MemView backed by MemoryRef
 * See the [type definitions](https://github.com/jakobnissen/MemViews.jl/blob/master/src/MemViews.jl)
-* See [example code making use of MemViews](https://github.com/jakobnissen/MemViews.jl/blob/master/src/example_find.jl)
-
-#### Proposal with MemView backed by pointers
-* [Same types and example code as above](https://github.com/jakobnissen/MemViews.jl/blob/master/src/alternative.jl)
+* See [example code making use of MemViews](https://github.com/jakobnissen/MemViews.jl/blob/master/examples/find.jl)
 
 ## Overview
 The `MemView{T, M}` type represents a chunk of contiguous non-atomic memory in CPU address space.
@@ -39,7 +36,7 @@ This will allow methods to opt-in to creating memory views from objects of type 
 and operating on the views.
 
 ## Writing methods using `MemView`
-For an example, see [`src/example_find.jl`](https://github.com/jakobnissen/MemViews.jl/blob/master/src/example_find.jl)
+For an example, see [`examples/find.jl`](https://github.com/jakobnissen/MemViews.jl/blob/master/examples/find.jl)
 
 Typically, it makes sense to implement the low-level memory manipulation of an object
 with functions that take `MemView`s. This has a few advantages:
@@ -104,7 +101,7 @@ MemView type directly, but it's nicer to dispatch on `::MemKind` than on `::Unio
   enough details about the implementation of `String` to know if this is practical.
 
 ## Alternative proposal
-In `src/alternative.jl`, there is an implementation where a `MemView` is just a pointer and a length.
+In `examples/alternative.jl`, there is an implementation where a `MemView` is just a pointer and a length.
 This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this propsal has:
 
 * The `MemKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_

@@ -38,6 +38,7 @@ automatically work, even if `MemView(x)` returns a mutable view.
 See also: `MemKind`
 """
 struct MemView{T, M} <: DenseVector{T}
+    # If the memview is empty, there is no guarantees where the ref points to
     ref::MemoryRef{T}
     len::Int
 
@@ -83,7 +84,7 @@ function as_bytes(::Unsafe, v::MemView{T, M}) where {T, M}
     isbitstype(T) || error("as_bytes only works on bitstypes element type")
     sz = sizeof(v)
     GC.@preserve v mem = unsafe_wrap(Memory{UInt8}, Ptr{UInt8}(pointer(v)), sz)
-    MemView{UInt8, M}(MemoryRef(mem), sz)
+    MemView{UInt8, M}(memoryref(mem), sz)
 end
 as_bytes(::Unsafe, v::MemView{UInt8}) = v
 

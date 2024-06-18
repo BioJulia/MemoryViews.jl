@@ -1,6 +1,8 @@
+MemView(v::MemView) = v
+
 # Array and Memory
 MemKind(::Union{Array{T}, Memory{T}}) where {T} = IsMemory(MutableMemView{T})
-MemView(A::Memory{T}) where {T} = MutableMemView{T}(MemoryRef(A), length(A))
+MemView(A::Memory{T}) where {T} = MutableMemView{T}(memoryref(A), length(A))
 MemView(A::Array{T}) where {T} = MutableMemView{T}(A.ref, length(A))
 
 # Strings
@@ -13,14 +15,15 @@ function MemView(s::SubString)
     mem = memview.ref.mem
     span = (offset + 1):len
     @boundscheck checkbounds(mem, span)
-    @inbounds typeof(memview)(MemoryRef(mem, offset + 1), s.ncodeunits * codesize)
+    @inbounds typeof(memview)(memoryref(mem, offset + 1), s.ncodeunits * codesize)
 end
 
 # Special implementation for SubString{String}, which we can guarantee never
 # has out of bounds indices, unless the user previously misused @inbounds
 function MemView(s::SubString{String})
     memview = MemView(parent(s))
-    ImmutableMemView{UInt8}(Base.memoryref(memview.ref, s.offset + 1, false), s.ncodeunits)
+    newref = @inbounds memoryref(memview.ref, s.offset + 1)
+    ImmutableMemView{UInt8}(newref, s.ncodeunits)
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
