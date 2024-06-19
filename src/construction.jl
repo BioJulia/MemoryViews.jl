@@ -1,7 +1,8 @@
 MemView(v::MemView) = v
 
 # Array and Memory
-MemKind(::Union{Array{T}, Memory{T}}) where {T} = IsMemory(MutableMemView{T})
+MemKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemView{T})
+MemKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemView{T})
 MemView(A::Memory{T}) where {T} = MutableMemView{T}(memoryref(A), length(A))
 MemView(A::Array{T}) where {T} = MutableMemView{T}(A.ref, length(A))
 
@@ -28,7 +29,7 @@ end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
 # implements MemView, which some AbstractStrings may not
-function MemKind(::Base.CodeUnits{C, S}) where {C, S}
+function MemKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
     # Strings are normally immutable. New, mutable string types
     # would need to overload this method.
     hasmethod(MemView, (S,)) ? IsMemory(ImmutableMemView{C}) : NotMemory()
@@ -45,7 +46,7 @@ const ContiguousSubArray = SubArray{
     <:Union{Tuple{Vararg{Real}}, Tuple{AbstractUnitRange, Vararg{Any}}},
 } where {T, N, P}
 
-MemKind(s::ContiguousSubArray{T, N, P}) where {T, N, P} = MemKind(parent(s)::P)
+MemKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemKind(P)
 function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     memview = MemView(parent(s)::P)
     inds = only(parentindices(s))

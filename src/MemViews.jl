@@ -91,19 +91,19 @@ as_bytes(::Unsafe, v::MemView{UInt8}) = v
 """
     MemKind
 
-Trait object used to signal if an instance is semantically equal to its own `MemView`.
-If so, `MemKind(x)` should return an instance of `IsMemory`,
-else `NotMemory()`. The default implementation `MemKind(::Any)` returns `NotMemory()`.
+Trait object used to signal if values of a type is semantically equal to their own `MemView`.
+If so, `MemKind(T)` should return an instance of `IsMemory`,
+else `NotMemory()`. The default implementation `MemKind(::Type)` returns `NotMemory()`.
 
-If `MemKind(x) isa IsMemory{T}`, the following must hold:
-1. `T` is a concrete subtype of `MemView`. To obtain `T` from an `m::IsMemory{T}`,
+If `MemKind(T) isa IsMemory{M}`, the following must hold:
+1. `M` is a concrete subtype of `MemView`. To obtain `M` from an `m::IsMemory{M}`,
     use `inner(m)`.
-2. `MemView(x)` is a valid instance of `T`.
-3. `MemView(x) == x`.
+2. `MemView(T)` is a valid instance of `M`.
+3. `inner(MemKind(typeof(x))) == typeof(MemView(x))`.
 
 Some objects can be turned into `MemView` without being `IsMemory`.
 For example, `MemView(::String)` returns a valid `MemView` even though
-`MemKind(::String) === NotMemory()`.
+`MemKind(String) === NotMemory()`.
 This is because strings have different semantics than mem views - the latter
 is a dense `AbstractArray` while strings are not, and so the third requirement
 `MemView(x::String) == x` does not hold.
@@ -139,7 +139,8 @@ Return `T` from an `IsMemory{T}`.
 """
 inner(::IsMemory{T}) where {T} = T
 
-MemKind(::Any) = NotMemory()
+MemKind(::Type) = NotMemory()
+MemKind(::Type{Union{}}) = NotMemory()
 
 include("construction.jl")
 include("basic.jl")
