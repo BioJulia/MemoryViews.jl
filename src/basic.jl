@@ -20,13 +20,11 @@ function Base.parentindices(x::MemView)
     elem_offset + 1: elem_offset + x.len
 end
 
-function Base.copy(x::MutableMemView)
+function Base.copy(x::MemView)
     isempty(x) && return x
     newmem = @inbounds x.ref.mem[parentindices(x)]
     typeof(x)(memoryref(newmem), x.len)
 end
-
-Base.copy(x::ImmutableMemView) = x
 
 function Base.getindex(v::MemView, i::Integer)
     @boundscheck checkbounds(v, i)
