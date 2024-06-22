@@ -14,7 +14,6 @@ The `MemView` type is a useful low-level building block for code that operates o
 * Low-overhead, efficient methods
 * A safer alternative to pointers
 
-## Usage
 The `MemView` type has the following layout:
 
 ```julia
@@ -36,9 +35,11 @@ Immutable memory views are immutable, in that they do not support `setindex!` or
 mutating methods. The existence of an `ImmutableMemView` does not protect its underlying
 data from being mutated through another variable.
 
+## Usage
 ### Constructing memory views
 Construct memory views from `x` with `MemView(x)`.
 MemViews should be constructable from any type that is stored as an array densely in memory.
+It can also be conctructed from other non-array types that are represented by a chunk of memory (like a `String`).
 By default, constructors exists for the memory-backed types in Base:
 
 ```jldoctest; output=false

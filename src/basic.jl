@@ -16,7 +16,7 @@ end
 
 function Base.parentindices(x::MemView)
     byte_offset = pointer(x.ref) - pointer(x.ref.mem)
-    elem_offset = div(byte_offset, Base.elsize(x)) % Int
+    elem_offset = div(byte_offset % UInt, Base.elsize(x) % UInt) % Int
     elem_offset + 1: elem_offset + x.len
 end
 
@@ -28,8 +28,12 @@ end
 
 function Base.getindex(v::MemView, i::Integer)
     @boundscheck checkbounds(v, i)
-    Base.memoryrefget(@inbounds(memoryref(v.ref, i)), :not_atomic, false)
+    ref = @inbounds memoryref(v.ref, i)
+    @inbounds ref[]
 end
+
+# TODO: Similar, and empty with instances
+Base.empty(T::Type{<:MemView{E}}) where E = T(memoryref(Memory{E}()), 0)
 
 Base.pointer(x::MemView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where {T} = pointer(v)
@@ -47,14 +51,23 @@ function Base.getindex(v::MemView, idx::AbstractUnitRange)
     typeof(v)(newref, length(idx))
 end
 
+Base.getindex(v::MemView, ::Colon) = v
 Base.view(v::MemView, idx::AbstractUnitRange) = v[idx]
 
-function Base.unsafe_copyto!(dest::MutableMemView{T}, doffs, src::MemView{T}, soffs, n) where T
-    iszero(n) && return dest
-    dst = @inbounds memoryref(dest.ref, Int(doffs)::Int)
-    src = @inbounds memoryref(src.ref, Int(soffs)::Int)
-    @inbounds unsafe_copyto!(dst, src, Int(n)::Int)
-    return dest
+function Base.unsafe_copyto!(dst::MutableMemView{T}, src::MemView{T}) where T
+    iszero(length(src)) && return dst
+    @inbounds unsafe_copyto!(dst.ref, src.ref, length(src))
+    return dst
+end
+
+function Base.copy!(dst::MutableMemView{T}, src::MemView{T}) where T
+    @boundscheck length(dst) == length(src) || throw(BoundsError(dst, eachindex(src)))
+    unsafe_copyto!(dst, src)
+end
+
+function Base.copyto!(dst::MutableMemView{T}, src::MemView{T}) where T
+    @boundscheck length(dst) ≥ length(src) || throw(BoundsError(dst, eachindex(src)))
+    unsafe_copyto!(dst, src)
 end
 
 function Base.findnext(
@@ -69,11 +82,27 @@ function Base.findnext(
     v_ind + real_start - 1
 end
 
-function memchr(mem::ImmutableMemView{T}, byte::T) where {T <: Union{Int, UInt8}}
+function memchr(mem::ImmutableMemView{T}, byte::T) where {T <: Union{Int8, UInt8}}
     isempty(mem) && return nothing
     GC.@preserve mem begin
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memchr(ptr::Ptr{UInt8}, (byte % UInt8)::UInt8, length(mem)::Int)::Ptr{Cvoid}
     end
     p == C_NULL ? nothing : (p - ptr) % Int + 1
+end
+
+const Bits = Union{
+    Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Char
+}
+
+function Base.:(==)(a::MemView{T}, b::MemView{T}) where {T <: Bits}
+    length(a) == length(b) || return false
+    T === Union{} && return true
+    a.ref === b.ref && return true
+    GC.@preserve a b begin
+        aptr = Ptr{Nothing}(pointer(a))
+        bptr = Ptr{Nothing}(pointer(a))
+        y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, length(a)::Int)::Cint
+    end
+    iszero(y)
 end

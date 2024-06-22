@@ -18,16 +18,34 @@ const unsafe = Unsafe()
     MemView{T, M} <: DenseVector{T}
 
 View into a `Memory{T}`.
+Construct from memory-backed values `x` with `MemView(x)`.
+
 `MemView`s are guaranteed to point to contiguous, valid CPU memory,
 except where they have size zero.
 
 The parameter `M` controls the mutability of the memory view,
 and may be `:mutable` or `:immutable`, corresponding to the
-The aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
+the aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
 
+See also: `MemKind`
+
+# Examples
+```jldoctest
+julia> v = view([1, 2, 3, 4], 2:3);
+
+julia> mem = MemView(v)
+2-element MutableMemView{Int64}:
+ 2
+ 3
+
+julia> MemView(codeunits("abc")) isa ImmutableMemView{UInt8}
+true
+```
+
+# Extended help
 New types `T` which are backed by dense memory should implement:
 * `MemView(x::T)` to construct a memory view from `x`. This should
-   always return a mutable view if `x` is mutable.
+   always return a `MutableMemView` when the memory of `x` is mutable.
 * `MemKind(x::T)`, if `T` is semantically equal to its own memory view.
   Examples of this include `Vector`, `Memory`, and
   `Base.CodeUnits{UInt8, String}`. If so, `x == MemView(x)` should hold.
@@ -35,7 +53,15 @@ New types `T` which are backed by dense memory should implement:
 If `MemView(x)` is implemented, then `ImmutableMemView(x)` will
 automatically work, even if `MemView(x)` returns a mutable view.
 
-See also: `MemKind`
+It is not possible to mutate memory though an `ImmutableMemView`, but the existence
+of the view does not protect the same memory from being mutated though another
+variable.
+
+The precise memory layout of the data in a `MemView` follows that of `Memory`.
+This includes the fact that some elements in the array, such as  `String`s,
+may be stored as pointers, and [isbits Union optimisations]
+(https://docs.julialang.org/en/v1/devdocs/isbitsunionarrays/).
+
 """
 struct MemView{T, M} <: DenseVector{T}
     # If the memview is empty, there is no guarantees where the ref points to
@@ -57,7 +83,6 @@ const ImmutableMemView{T} = MemView{T, :immutable}
 ImmutableMemView(x) = ImmutableMemView(MemView(x)::MemView)
 ImmutableMemView(x::MutableMemView{T}) where {T} = ImmutableMemView{T}(x.ref, x.len)
 ImmutableMemView(x::ImmutableMemView) = x
-MutableMemView(x::MutableMemView) = x
 
 """
     MutableMemView(::Unsafe, x::MemView)
@@ -99,30 +124,30 @@ If `MemKind(T) isa IsMemory{M}`, the following must hold:
 1. `M` is a concrete subtype of `MemView`. To obtain `M` from an `m::IsMemory{M}`,
     use `inner(m)`.
 2. `MemView(T)` is a valid instance of `M`.
-3. `inner(MemKind(typeof(x))) == typeof(MemView(x))`.
+3. `MemView(x) == x` for all instances `x::T`
 
 Some objects can be turned into `MemView` without being `IsMemory`.
 For example, `MemView(::String)` returns a valid `MemView` even though
 `MemKind(String) === NotMemory()`.
-This is because strings have different semantics than mem views - the latter
-is a dense `AbstractArray` while strings are not, and so the third requirement
+This is because strings have different semantics than memory views - the latter
+is a dense `AbstractArray` while strings are not, and so the fourth requirement
 `MemView(x::String) == x` does not hold.
 
-See also: `MemView`
+See also: [`MemView`](@ref)
 """
 abstract type MemKind end
 
 """
     NotMemory <: MemKind
 
-See `MemKind`
+See: [`MemKind`](@ref)
 """
 struct NotMemory <: MemKind end
 
 """
     IsMemory{T <: MemView} <: MemKind
 
-See `MemKind`
+See: [`MemKind`](@ref)
 """
 struct IsMemory{T <: MemView} <: MemKind
     function IsMemory{T}() where {T}
@@ -136,6 +161,8 @@ IsMemory(T::Type{<:MemView}) = IsMemory{T}()
     inner(::IsMemory{T})
 
 Return `T` from an `IsMemory{T}`.
+
+See: [`MemKind`](@ref)
 """
 inner(::IsMemory{T}) where {T} = T
 

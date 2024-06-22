@@ -6,15 +6,17 @@ end
 ```
 
 # MemViews in interfaces
-The intended purpose of the MemView type is to provide a kind of low-level abstraction for memory-backed objects.
+The intended purpose of the MemView type is to ease manipulation of memory-backed objects through a kind of low-level abstraction.
 Strings, substrings, `Memory`, dense views of `Matrix` and countless other types all have the same data representation, namely as simply a chunk of memory.
-This means they share important properties: Searching for a one-byte `Char` inside a `String` needs to ccall the exact same `memchr` as searching for `Int8` in a subarray of `Memory`, so obviously, those to functions calls ought to dispath to the same method.
+This means they share important properties: Searching for a one-byte `Char` inside a `String` needs to ccall the exact same `memchr` as searching for `Int8` in a subarray of `Memory`.
+Likewise, checking that two substrings are equal can use the same implementation as code checking that two bytearrays are equal.
+Obviously, writing the same implementation for each of these types is wasteful.
 
 Unfortunately, Julia's system of abstract types are poorly equipped to handle this.
-This is because abstract types represent united _behaviour_, whereas in this case, what unites these many different types are the underlying _representation_ - exactly the thing that abstract types want to paper over!
+This is because abstract types represent shared _behaviour_, whereas in this case, what unites these many different types are the underlying _representation_ - exactly the thing that abstract types want to paper over!
 
-MemViews.jl addresses this by introducing two types: At the bottom of abstraction, the simple, concrete type `MemView` is the simplest, unified instantiation of the underlying representation (a chunk of memory).
-At the top, the `MemKind` trait controls dispatch.
+MemViews.jl addresses this by introducing two types: At the bottom of abstraction, the simple `MemView` type is most basic, unified instantiation of the underlying representation (a chunk of memory).
+At the top, the `MemKind` trait controls dispatch such that the low-level `MemView` implementation is called for the right types.
 The idea is that whenever you write a method that operates on "just" a chunk of memory, you implement it for `MemView`.
 Then, you write methods with `MemKind` to make sure all the proper function calls gets dispatched to your `MemView` implementation.
 
@@ -29,7 +31,8 @@ Then, you write methods with `MemKind` to make sure all the proper function call
 `MemKind` answers the question: Can instances of a type be treated as equal to its own memory view?
 For a type `T`, `MemKind(T)` returns one of two types:
 * `NotMemory()` if `T`s are not equivalent to its own memory. Examples include `Int`, which has no memory representation because
-  they are not heap allocated, and `String`, which _are_ backed by memory, but which are semantically different from abstract vectors.
+  they are not heap allocated, and `String`, which _are_ backed by memory, but which are semantically different from an `AbstractVector`
+  containing its bytes.
 * `IsMemory{M}()` where `M` is a concrete subtype of `MemView`, if instances of `T` _are_ equivalent to their own memory.
   Examples include `Array`s and `Codeunits{String}`. For these objects, it's the case that `x == MemView(x)`.
 
@@ -55,10 +58,9 @@ An example could be:
 # Dispatch on `MemKind`
 my_hash(x) = my_hash(MemKind(typeof(x)), x)
 
-function my_hash(::IsMemory{<:MemView{UInt8}}, x)
-    mem = MemView(x)
-    # some optimised low-level memory manipulation with `mem`
-end
+# For objects that are bytes, call the function taking only the memory
+# representation of `x`
+my_hash(::IsMemory{<:MemView{UInt8}}, x) = my_hash(ImmutableMemView(x))
 
 # IsMemory with eltype other than UInt8 can't use the fast low-level function
 my_hash(T::IsMemory, x) = my_hash(NotMemory(), x)
@@ -67,9 +69,13 @@ function my_hash(::NotMemory, x)
     # fallback implementation
 end
 
-# Handle e.g. strings separately, since they are not semantically memory,
-# but for strings in particular, we want to treat it just like as if they
-# were just a chunk of bytes.
+function my_hash(mem::ImmutableMemView{UInt8})
+    # some optimised low-level memory manipulation with `mem` of bytes
+end
+
+# Handle e.g. strings separately, since they are not semantically equal to
+# an array of elements in memory, but for this method in particular,
+# we want to treat strings as if they are.
 function my_hash(x::Union{String, SubString{String}})
     my_hash(MemView(x))
 end

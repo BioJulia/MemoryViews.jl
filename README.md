@@ -1,92 +1,65 @@
-# MemViews.jl
-This is an experimental repo to work out an interface for a (possibly internal, unexported)
-memory view type for use in Base Julia.
+# <img src="./sticker.svg" width="30%" align="right" /> MemViews
 
-* See [the related issue on JuliaLang/julia](https://github.com/JuliaLang/julia/issues/54581).
+[![Latest Release](https://img.shields.io/github/release/BioJulia/MemViews.jl.svg)](https://github.com/BioJulia/MemViews.jl/releases/latest)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/BioJulia/MemViews.jl/blob/master/LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://biojulia.github.io/MemViews.jl/stable)
 
-#### Proposal with MemView backed by MemoryRef
-* See the [type definitions](https://github.com/jakobnissen/MemViews.jl/blob/master/src/MemViews.jl)
-* See [example code making use of MemViews](https://github.com/jakobnissen/MemViews.jl/blob/master/examples/find.jl)
+This package implements `MemView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemKind` trait to guide dispatch of generic methods to memory views.
+It is intended to be used as a foundational base for other packages.
 
-## Overview
-The `MemView{T, M}` type represents a chunk of contiguous non-atomic memory in CPU address space.
-The `MemKind` trait type is used for dispatch to correctly select methods that can
-work on memory directly.
-Conceptually, it's a `Memory{T}` with an offset and a length. Its layout is:
+To learn how to use the package, [read the documentation](https://biojulia.github.io/MemViews.jl/stable/)
 
+## Example
+### Basic usage
 ```julia
-struct MemView{T, M} <: DenseVector{T}
-    ref::MemoryRef{T}
-    len::Int
-end
+# Create complex nested types backed by memory
+v1 = view(codeunits("abc"), :)
+v2 = view([0x61, 0x62, 0x63], Base.OneTo(3))
+
+# This call hits the slow, generic fallback implementation in Base,
+# because it's very difficult to correctly cover all possible
+# combinations of types in the method
+copyto!(v2, v1)
+
+# These are ordinary `AbstractVector`s, in this case with
+# element type UInt8.
+mem1 = MemView(v1)
+mem2 = MemView(v2)
+
+# Both views are `MemoryView{UInt8}`, which has the fast path
+# implemented. Precisely because we represent "memory" as a simple,
+# concrete types, it's easier to provide these kinds of guarantees.
+copyto!(mem2, mem1)
+
+# Use the memory views as ordinary vectors
+fst = mem1[1]
+reverse!(mem1) # ... etc
 ```
 
-The `M` parameter of `MemView{T, M}` may be `:mutable` or `:immutable`, corresponding
-to the type aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
-
-## Implementing `MemView`s for your own types
-New types `T` which are backed by dense memory should implement `MemView(x::T)`.
-If `x` is mutable, `MemView(x)` should always return a `MutableMemory`.
-
-Further, for types `T` that semantally _are_ chunks of memory, e.g. `Vector`,
-`Memory`, `CodeUnits{UInt8, String}` and dense views of these, one should also
-implement `MemKind(x::T) = IsMemView{V}()`, where `V` is the concrete type of `MemView`
-instantiated by `MemView(x)`.
-This will allow methods to opt-in to creating memory views from objects of type `T`
-and operating on the views.
-
-## Writing methods using `MemView`
-For an example, see [`examples/find.jl`](https://github.com/jakobnissen/MemViews.jl/blob/master/examples/find.jl)
-
-Typically, it makes sense to implement the low-level memory manipulation of an object
-with functions that take `MemView`s. This has a few advantages:
-* It allows multiple different types to use the same implementation, compiling it only once.
-* It makes it more ergonomic to later have other memory-like types use the same implementation
-* Since `MemView`s are simpler structs than say, `Vector`s, code using
-  `MemView`s may be easier to reason about.
-
-Above the low-level implementation, there will typically be a set of methods that
-control dispatch, either to the `MemView` method if applicable, or to more generic
-fallback methods otherwise.
-
-At the very top of the dispatch chain, one would typically want to dispatch using
-the `MemKind` trait. Objects implementing this trait can be directly coverted to
-memory views.
-
-It is idiomatic to, when writing a method that only reads memory, implement it
-only for `ImmutableMemView`. The constructor `ImmutableMemView(x)` can be used
-to get an immutable view, even for types for which `MemView(x)` returns a mutable view.
-The advantage of this approach is that it makes the assumptions of the code clearer.
-
-## Design decisions
-#### Mutability
-Mutable and immutable memory views are statically distinguished, such that users
-can write methods that only take mutable memory views.
-This will statically prevent users from accidentally mutating e.g. strings.
-
-#### MemKind
-The MemKind trait is used because constructing a MemView only for dispatch purposes
-may not be able to be optimised away by the compiler for some types (currently, strings).
-
-MemKind operates on instances, because it's possible some types may
-be mutable or immutable depending on runtime information.
-On the other hand, operating on types would allow users to do something
-like this:
-
+### Dispatching to MemView
 ```julia
-function foo(v::Vector{T}) where T
-    M = MemKind(T)
-    ...
+function foo(x::ImmutableMemView)
+    # low-level implementation
 end
-```
-Even for an empty `v` with no instances.
 
-MemKind could be replaced with a function that returned `nothing`, or the correct
-MemView type directly, but it's nicer to dispatch on `::MemKind` than on `::Union{Nothing, Type{<:MemView}}`.
+function foo(::NotMemory, x::AbstractArray)
+    # slow, generic fallback
+end
+
+# Dispatch with the `MemKind` trait
+foo(::IsMemory, x) = foo(ImmutableMemView(x))
+foo(x) = foo(MemKind(typeof(x)), x)
+
+# Optionally: Also support strings
+foo(x::AbstractString) = foo(codeunits(x))
+```
+
+## Good to know
+* `MemViews.jl` require Julia 1.11-rc1 and above
+* Slicing a memory view produces a memory view - it does not copy.
 
 ## Limitations
-* Currently, `MemView` does not make use of `Core.GenericMemory`'s additional parameters, such as
-  atomicity or address space.
+* Currently, `MemView` does not make use of `Core.GenericMemory`'s additional parameters, such as atomicity or address space.
   This may easily be added with a `GenericMemView` type, similar to `Memory` / `GenericMemory`.
 
 * I can't figure out how to support reinterpreted arrays.
@@ -99,26 +72,3 @@ MemView type directly, but it's nicer to dispatch on `::MemKind` than on `::Unio
   requires heap-allocating a new `Memory` pointing to the existing memory of the string.
   This can be fixed if `String` is re-implemented to be backed by `Memory`, but I don't know
   enough details about the implementation of `String` to know if this is practical.
-
-## Alternative proposal
-In `examples/alternative.jl`, there is an implementation where a `MemView` is just a pointer and a length.
-This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this propsal has:
-
-* The `MemKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_
-* The distinction between mutable and immutable memory views
-
-Overall, I like the alternative proposal less. Raw pointers are bad for safety and ergonomics, and they interact
-less nicely with the Julia runtime. Also, the existing `GenericMemoryRef` is essentially perfect for this purpose.
-
-#### Advantages
-* Pointer-based memviews are cheaper to construct, and do not allocate for strings, unlike `Memory`.
-  Perhaps in the future, strings too will be backed by `Memory`.
-* Their interaction with the GC is simpler (as there is no interaction)
-
-#### Disadvantages
-* While some low-level methods using `MemView` will just forward to calling external libraries where
-  using a pointer is fine, many will be written in pure Julia. There, it's less nice to have raw pointers.
-* Code using pointer-based memviews must make sure to only have the views exist inside `GC.@preserve` blocks,
-  which is annoying and will almost certainly be violated accidentally somewhere
-* We can't use advantages of the existing `Memory` infrasrtructure, e.g. having a `GenericMemRef` which supports
-  atomic memory.

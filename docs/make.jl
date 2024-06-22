@@ -13,7 +13,7 @@ makedocs(
     pages = [
         "MemViews" => "index.md",
         "MemViews in interfaces" => "interfaces.md",
-        #"MemViews in Base" => "base.md",
+        "MemViews in Base" => "base.md",
     ],
     authors = "Jakob Nybo Nissen",
     checkdocs = :public,
