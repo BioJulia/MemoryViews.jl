@@ -23,7 +23,7 @@ end
 function Base.copy(x::MemView)
     isempty(x) && return x
     newmem = @inbounds x.ref.mem[parentindices(x)]
-    typeof(x)(memoryref(newmem), x.len)
+    typeof(x)(unsafe, memoryref(newmem), x.len)
 end
 
 function Base.getindex(v::MemView, i::Integer)
@@ -35,14 +35,14 @@ end
 function Base.similar(mem::MemView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
     len = Int(only(dims))::Int
     memory = Memory{T2}(undef, len)
-    MemView{T2, M}(memoryref(memory), len)
+    MemView{T2, M}(unsafe, memoryref(memory), len)
 end
 
 function Base.empty(mem::MemView{T1, M}, ::Type{T2}) where {T1, T2, M}
-    MemView{T2, M}(memoryref(Memory{T2}()), 0)
+    MemView{T2, M}(unsafe, memoryref(Memory{T2}()), 0)
 end
 
-Base.empty(T::Type{<:MemView{E}}) where {E} = T(memoryref(Memory{E}()), 0)
+Base.empty(T::Type{<:MemView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
 
 Base.pointer(x::MemView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemView{T}) where {T} = pointer(v)
@@ -54,10 +54,10 @@ function Base.getindex(v::MemView, idx::AbstractUnitRange)
     # This branch is necessary, because the memoryref can't point out of bounds.
     # So if the user gives an empty slice that is out of bounds, the boundscheck
     # may pass, but the memoryref construction will be OOB.
-    isempty(idx) && return typeof(v)(memoryref(v.ref.mem), 0)
+    isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, Int(first(idx))::Int)
-    typeof(v)(newref, length(idx))
+    typeof(v)(unsafe, newref, length(idx))
 end
 
 Base.getindex(v::MemView, ::Colon) = v

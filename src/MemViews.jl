@@ -1,7 +1,6 @@
 module MemViews
 
-export MemView,
-    ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
+export MemView, ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
 
 """
     Unsafe
@@ -15,6 +14,16 @@ struct Unsafe end
 const unsafe = Unsafe()
 
 """
+Trait struct, only used in the mutability parameter of `MemView`
+"""
+struct Mutable end
+
+"""
+Trait struct, only used in the mutability parameter of `MemView`
+"""
+struct Immutable end
+
+"""
     MemView{T, M} <: DenseVector{T}
 
 View into a `Memory{T}`.
@@ -24,7 +33,7 @@ Construct from memory-backed values `x` with `MemView(x)`.
 except where they have size zero.
 
 The parameter `M` controls the mutability of the memory view,
-and may be `:mutable` or `:immutable`, corresponding to the
+and may be `Mutable` or `Immutable`, corresponding to the
 the aliases `MutableMemView{T}` and `ImmutableMemView{T}`.
 
 See also: `MemKind`
@@ -63,25 +72,23 @@ may be stored as pointers, and [isbits Union optimisations]
 (https://docs.julialang.org/en/v1/devdocs/isbitsunionarrays/).
 
 """
-struct MemView{T, M} <: DenseVector{T}
+struct MemView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     # If the memview is empty, there is no guarantees where the ref points to
     ref::MemoryRef{T}
     len::Int
 
-    function MemView{T, M}(ref::MemoryRef{T}, len::Int) where {T, M}
-        if M !== :mutable && M !== :immutable
-            error("Parameter M must be :mutable or :immutable")
-        end
+    function MemView{T, M}(::Unsafe, ref::MemoryRef{T}, len::Int) where {T, M}
+        M == Union{} && error("Parameter M must be Mutable or Immutable")
         new{T, M}(ref, len)
     end
 end
 
-const MutableMemView{T} = MemView{T, :mutable}
-const ImmutableMemView{T} = MemView{T, :immutable}
+const MutableMemView{T} = MemView{T, Mutable}
+const ImmutableMemView{T} = MemView{T, Immutable}
 
 # Mutable mem views can turn into immutable ones, but not vice versa
 ImmutableMemView(x) = ImmutableMemView(MemView(x)::MemView)
-ImmutableMemView(x::MutableMemView{T}) where {T} = ImmutableMemView{T}(x.ref, x.len)
+ImmutableMemView(x::MutableMemView{T}) where {T} = ImmutableMemView{T}(unsafe, x.ref, x.len)
 ImmutableMemView(x::ImmutableMemView) = x
 
 """
@@ -91,7 +98,7 @@ Convert a memory view into a mutable memory view.
 Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
-MutableMemView(::Unsafe, x::MemView{T}) where {T} = MemView{T, :mutable}(x.ref, x.len)
+MutableMemView(::Unsafe, x::MemView{T}) where {T} = MutableMemView{T}(unsafe, x.ref, x.len)
 
 """
     MemKind

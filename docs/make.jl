@@ -15,9 +15,9 @@ makedocs(;
     remotes=nothing,
 )
 
-deploydocs(
-    repo = "github.com/BioJulia/MemViews.jl.git",
-    push_preview = true,
-    deps = nothing,
-    make = nothing,
+deploydocs(;
+    repo="github.com/BioJulia/MemViews.jl.git",
+    push_preview=true,
+    deps=nothing,
+    make=nothing,
 )
