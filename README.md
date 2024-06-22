@@ -2,7 +2,7 @@
 
 [![Latest Release](https://img.shields.io/github/release/BioJulia/MemViews.jl.svg)](https://github.com/BioJulia/MemViews.jl/releases/latest)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/BioJulia/MemViews.jl/blob/master/LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://biojulia.github.io/MemViews.jl/stable)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://biojulia.github.io/MemViews.jl/dev)
 
 This package implements `MemView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemKind` trait to guide dispatch of generic methods to memory views.
 It is intended to be used as a foundational base for other packages.
@@ -59,6 +59,9 @@ foo(x::AbstractString) = foo(codeunits(x))
 * Slicing a memory view produces a memory view - it does not copy.
 
 ## Limitations
+* Many optimised fast methods for more established types like `Vector` are missing for `MemView`.
+  These are added over time. Please make an issue or a PR as you encounter missing methods.
+
 * Currently, `MemView` does not make use of `Core.GenericMemory`'s additional parameters, such as atomicity or address space.
   This may easily be added with a `GenericMemView` type, similar to `Memory` / `GenericMemory`.
 
