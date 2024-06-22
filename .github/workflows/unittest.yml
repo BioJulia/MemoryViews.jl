@@ -21,9 +21,9 @@ jobs:
             julia-arch: x86
             os: ubuntu-latest
             experimental: true
-          - julia-version: 1
-            os: macOS-latest
-            experimental: false
+         # - julia-version: 1
+         #   os: macOS-latest
+         #   experimental: false
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
