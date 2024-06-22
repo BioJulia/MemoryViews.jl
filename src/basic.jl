@@ -32,7 +32,16 @@ function Base.getindex(v::MemView, i::Integer)
     @inbounds ref[]
 end
 
-# TODO: Similar, and empty with instances
+function Base.similar(mem::MemView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
+    len = Int(only(dims))::Int
+    memory = Memory{T2}(undef, len)
+    MemView{T2, M}(memoryref(memory), len)
+end
+
+function Base.empty(mem::MemView{T1, M}, ::Type{T2}) where {T1, T2, M}
+    MemView{T2,M}(memoryref(Memory{T2}()), 0)
+end
+
 Base.empty(T::Type{<:MemView{E}}) where E = T(memoryref(Memory{E}()), 0)
 
 Base.pointer(x::MemView{T}) where {T} = Ptr{T}(pointer(x.ref))
