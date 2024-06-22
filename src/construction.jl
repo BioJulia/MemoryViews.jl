@@ -3,8 +3,8 @@ MemView(v::MemView) = v
 # Array and Memory
 MemKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemView{T})
 MemKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemView{T})
-MemView(A::Memory{T}) where {T} = MutableMemView{T}(memoryref(A), length(A))
-MemView(A::Array{T}) where {T} = MutableMemView{T}(A.ref, length(A))
+MemView(A::Memory{T}) where {T} = MutableMemView{T}(unsafe, memoryref(A), length(A))
+MemView(A::Array{T}) where {T} = MutableMemView{T}(unsafe, A.ref, length(A))
 
 # Strings
 MemView(s::String) = ImmutableMemView(unsafe_wrap(Memory{UInt8}, s))
@@ -16,7 +16,7 @@ function MemView(s::SubString)
     mem = memview.ref.mem
     span = (offset + 1):len
     @boundscheck checkbounds(mem, span)
-    @inbounds typeof(memview)(memoryref(mem, offset + 1), s.ncodeunits * codesize)
+    @inbounds typeof(memview)(unsafe, memoryref(mem, offset + 1), s.ncodeunits * codesize)
 end
 
 # Special implementation for SubString{String}, which we can guarantee never
@@ -24,7 +24,7 @@ end
 function MemView(s::SubString{String})
     memview = MemView(parent(s))
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
-    ImmutableMemView{UInt8}(newref, s.ncodeunits)
+    ImmutableMemView{UInt8}(unsafe, newref, s.ncodeunits)
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string

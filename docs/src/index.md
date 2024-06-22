@@ -23,12 +23,12 @@ struct MemView{T, M} <: AbstractVector{T}
 end
 ```
 
-The `M` parameter is a `Symbol` and must be `:immutable` or `:mutable`.
+The `M` parameter is either `Mutable` or `Immutable`, which are unexported types defined in this package.
 MemViews also provide the following aliases for convenience:
 
 ```julia
-const MutableMemView{T} = MemView{T, :mutable}
-const ImmutableMemView{T} = MemView{T, :immutable}
+const MutableMemView{T} = MemView{T, Mutable}
+const ImmutableMemView{T} = MemView{T, Immutable}
 ```
 
 Immutable memory views are immutable, in that they do not support `setindex!` or other
