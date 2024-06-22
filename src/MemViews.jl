@@ -1,7 +1,7 @@
 module MemViews
 
 export MemView,
-    ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner, as_bytes
+    ImmutableMemView, MutableMemView, MemKind, IsMemory, NotMemory, inner
 
 """
     Unsafe
@@ -92,26 +92,6 @@ Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
 MutableMemView(::Unsafe, x::MemView{T}) where {T} = MemView{T, :mutable}(x.ref, x.len)
-
-# TODO: I believe this is allowed under C's rules. It may be UB under Julia's.
-# In that case, these methods should just be removed.
-"""
-    as_bytes(::Unsafe, x::MemView)
-
-Convert a `MemView{T}` into a corresponding `MemView{UInt8}`.
-If `T` is not a bitstype, throw an error.
-Mutating the resulting view modifies any instances of `T`
-in the original memory, which may cause some user-defined invariants
-to no longer hold for these instances.
-Note that this is allowed under C's strict aliasing rules.
-"""
-function as_bytes(::Unsafe, v::MemView{T, M}) where {T, M}
-    isbitstype(T) || error("as_bytes only works on bitstypes element type")
-    sz = sizeof(v)
-    GC.@preserve v mem = unsafe_wrap(Memory{UInt8}, Ptr{UInt8}(pointer(v)), sz)
-    MemView{UInt8, M}(memoryref(mem), sz)
-end
-as_bytes(::Unsafe, v::MemView{UInt8}) = v
 
 """
     MemKind

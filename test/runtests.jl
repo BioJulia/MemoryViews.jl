@@ -48,17 +48,6 @@ end
     @test mem == [0x62, 0x63]
 end
 
-@testset "Unsafe casting" begin
-    v = UInt32[htol(0x04030201), htol(0x08070605)]
-    mem = as_bytes(MemViews.unsafe, MemView(v))
-    @test mem == 0x01:08
-    mem[2] = 0x09
-    @test mem == [1, 9, 3, 4, 5, 6, 7, 8]
-
-    mem = MemView("abc")
-    @test as_bytes(MemViews.unsafe, mem) === mem
-end
-
 @testset "Immutable views are immutable" begin
     mem = MemView("abc")
     @test mem isa ImmutableMemView{UInt8}
