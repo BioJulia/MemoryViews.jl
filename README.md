@@ -3,6 +3,7 @@
 [![Latest Release](https://img.shields.io/github/release/BioJulia/MemViews.jl.svg)](https://github.com/BioJulia/MemViews.jl/releases/latest)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/BioJulia/MemViews.jl/blob/master/LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://biojulia.github.io/MemViews.jl/dev)
+[![](https://codecov.io/gh/BioJulia/MemViews.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/BioJulia/MemViews.jl)
 
 This package implements `MemView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemKind` trait to guide dispatch of generic methods to memory views.
 It is intended to be used as a foundational base for other packages.
