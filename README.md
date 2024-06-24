@@ -8,7 +8,7 @@
 This package implements `MemView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemKind` trait to guide dispatch of generic methods to memory views.
 It is intended to be used as a foundational base for other packages.
 
-To learn how to use the package, [read the documentation](https://biojulia.github.io/MemViews.jl/stable/)
+To learn how to use the package, [read the documentation](https://biojulia.github.io/MemViews.jl/dev/)
 
 ## Example
 ### Basic usage
@@ -76,3 +76,6 @@ foo(x::AbstractString) = foo(codeunits(x))
   requires heap-allocating a new `Memory` pointing to the existing memory of the string.
   This can be fixed if `String` is re-implemented to be backed by `Memory`, but I don't know
   enough details about the implementation of `String` to know if this is practical.
+
+## Contributing
+Make an issue or PR on this repository, or get in touch with the BioJulia community over at the [Julia Slack](https://julialang.org/slack/) or Zulip servers.

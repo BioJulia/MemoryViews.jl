@@ -78,7 +78,7 @@ struct MemView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     len::Int
 
     function MemView{T, M}(::Unsafe, ref::MemoryRef{T}, len::Int) where {T, M}
-        M == Union{} && error("Parameter M must be Mutable or Immutable")
+        (M === Mutable || M === Immutable) || error("Parameter M must be Mutable or Immutable")
         new{T, M}(ref, len)
     end
 end
