@@ -56,7 +56,7 @@ foo(x::AbstractString) = foo(codeunits(x))
 ```
 
 ## Good to know
-* `MemoryViews.jl` require Julia 1.11-rc1 and above
+* `MemoryViews.jl` currently only works on the master branch of Julia.
 * Slicing a memory view produces a memory view - it does not copy.
 
 ## Limitations
