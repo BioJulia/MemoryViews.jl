@@ -5,7 +5,7 @@
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://biojulia.github.io/MemoryViews.jl/dev)
 [![](https://codecov.io/gh/BioJulia/MemoryViews.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/BioJulia/MemoryViews.jl)
 
-This package implements `MemoryView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemKind` trait to guide dispatch of generic methods to memory views.
+This package implements `MemoryView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemoryKind` trait to guide dispatch of generic methods to memory views.
 It is intended to be used as a foundational base for other packages.
 
 To learn how to use the package, [read the documentation](https://biojulia.github.io/MemoryViews.jl/dev/)
@@ -47,9 +47,9 @@ function foo(::NotMemory, x::AbstractArray)
     # slow, generic fallback
 end
 
-# Dispatch with the `MemKind` trait
+# Dispatch with the `MemoryKind` trait
 foo(::IsMemory, x) = foo(ImmutableMemoryView(x))
-foo(x) = foo(MemKind(typeof(x)), x)
+foo(x) = foo(MemoryKind(typeof(x)), x)
 
 # Optionally: Also support strings
 foo(x::AbstractString) = foo(codeunits(x))

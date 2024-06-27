@@ -294,23 +294,23 @@ end
     end
 end
 
-@testset "MemKind" begin
-    @test MemKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
-    @test MemKind(typeof(codeunits(view("abc", 2:3)))) == IsMemory(ImmutableMemoryView{UInt8})
-    @test MemKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
+@testset "MemoryKind" begin
+    @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
+    @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) == IsMemory(ImmutableMemoryView{UInt8})
+    @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
           IsMemory(MutableMemoryView{String})
-    @test MemKind(Matrix{Nothing}) == IsMemory(MutableMemoryView{Nothing})
-    @test MemKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
-    @test MemKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
+    @test MemoryKind(Matrix{Nothing}) == IsMemory(MutableMemoryView{Nothing})
+    @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
+    @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
 
     @test inner(IsMemory(MutableMemoryView{Int32})) == MutableMemoryView{Int32}
     @test inner(IsMemory(ImmutableMemoryView{Tuple{String, Int}})) ==
           ImmutableMemoryView{Tuple{String, Int}}
 
-    @test MemKind(SubString{String}) == NotMemory()
-    @test MemKind(String) == NotMemory()
-    @test MemKind(Int) == NotMemory()
-    @test MemKind(Nothing) == NotMemory()
-    @test MemKind(Union{}) == NotMemory()
+    @test MemoryKind(SubString{String}) == NotMemory()
+    @test MemoryKind(String) == NotMemory()
+    @test MemoryKind(Int) == NotMemory()
+    @test MemoryKind(Nothing) == NotMemory()
+    @test MemoryKind(Union{}) == NotMemory()
     @test_throws Exception inner(NotMemory())
 end

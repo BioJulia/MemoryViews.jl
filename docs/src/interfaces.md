@@ -16,9 +16,9 @@ Unfortunately, Julia's system of abstract types are poorly equipped to handle th
 This is because abstract types represent shared _behaviour_, whereas in this case, what unites these many different types are the underlying _representation_ - exactly the thing that abstract types want to paper over!
 
 MemoryViews.jl addresses this by introducing two types: At the bottom of abstraction, the simple `MemoryView` type is most basic, unified instantiation of the underlying representation (a chunk of memory).
-At the top, the `MemKind` trait controls dispatch such that the low-level `MemoryView` implementation is called for the right types.
+At the top, the `MemoryKind` trait controls dispatch such that the low-level `MemoryView` implementation is called for the right types.
 The idea is that whenever you write a method that operates on "just" a chunk of memory, you implement it for `MemoryView`.
-Then, you write methods with `MemKind` to make sure all the proper function calls gets dispatched to your `MemoryView` implementation.
+Then, you write methods with `MemoryKind` to make sure all the proper function calls gets dispatched to your `MemoryView` implementation.
 
 !!! tip
     Even if you only ever intend a method to work for, say, `Vector`, it can still be a good idea to implement it for `MemoryView`.
@@ -27,9 +27,9 @@ Then, you write methods with `MemKind` to make sure all the proper function call
     Second, you can implement the method for `ImmutableMemoryView`, letting both caller and callee know that the argument is not being mutated.
     Third, after implementing your method for `MemoryView`, it may be easy to also make your method work for `Memory` and other memory-backed types!
 
-## The `MemKind` trait
-`MemKind` answers the question: Can instances of a type be treated as equal to its own memory view?
-For a type `T`, `MemKind(T)` returns one of two types:
+## The `MemoryKind` trait
+`MemoryKind` answers the question: Can instances of a type be treated as equal to its own memory view?
+For a type `T`, `MemoryKind(T)` returns one of two types:
 * `NotMemory()` if `T`s are not equivalent to its own memory. Examples include `Int`, which has no memory representation because
   they are not heap allocated, and `String`, which _are_ backed by memory, but which are semantically different from an `AbstractVector`
   containing its bytes.
@@ -37,26 +37,26 @@ For a type `T`, `MemKind(T)` returns one of two types:
   Examples include `Array`s and `Codeunits{String}`. For these objects, it's the case that `x == MemoryView(x)`.
 
 ```jldoctest
-julia> MemKind(Vector{Union{Int32, UInt32}})
+julia> MemoryKind(Vector{Union{Int32, UInt32}})
 IsMemory{MutableMemoryView{Union{Int32, UInt32}}}()
 
-julia> MemKind(Matrix{String})
+julia> MemoryKind(Matrix{String})
 IsMemory{MutableMemoryView{String}}()
 
-julia> MemKind(SubString{String})
+julia> MemoryKind(SubString{String})
 NotMemory()
 ```
 
 ## Implementing `MemoryView` interfaces
 When implementing a method that has a fast-past for memory-like types, you typically want to
-* At the top level, dispatch on `MemKind` of your argument to funnel the memory-like objects into
+* At the top level, dispatch on `MemoryKind` of your argument to funnel the memory-like objects into
   your optimised `MemoryView` function
 * At the low level, use `MemoryView` for the implementation of the optimised version
 
 An example could be:
 ```julia
-# Dispatch on `MemKind`
-my_hash(x) = my_hash(MemKind(typeof(x)), x)
+# Dispatch on `MemoryKind`
+my_hash(x) = my_hash(MemoryKind(typeof(x)), x)
 
 # For objects that are bytes, call the function taking only the memory
 # representation of `x`

@@ -1,8 +1,8 @@
 MemoryView(v::MemoryView) = v
 
 # Array and Memory
-MemKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemoryView{T})
-MemKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
+MemoryKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemoryView{T})
+MemoryKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryView(A::Memory{T}) where {T} = MutableMemoryView{T}(unsafe, memoryref(A), length(A))
 MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, A.ref, length(A))
 
@@ -29,7 +29,7 @@ end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
 # implements MemoryView, which some AbstractStrings may not
-function MemKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
+function MemoryKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
     # Strings are normally immutable. New, mutable string types
     # would need to overload this method.
     hasmethod(MemoryView, (S,)) ? IsMemory(ImmutableMemoryView{C}) : NotMemory()
@@ -46,7 +46,7 @@ const ContiguousSubArray = SubArray{
     <:Union{Tuple{Vararg{Real}}, Tuple{AbstractUnitRange, Vararg{Any}}},
 } where {T, N, P}
 
-MemKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemKind(P)
+MemoryKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemoryKind(P)
 function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))

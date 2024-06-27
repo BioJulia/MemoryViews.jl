@@ -4,7 +4,7 @@ my_findfirst(p, haystack) = my_findnext(p, haystack, firstindex(haystack))
 # When the predicate is looking for a single byte, we dispatch to see
 # if the haystack is a chunk of memory. In that case, we can use memchr
 function my_findnext(p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8}, haystack, k)
-    _my_findnext(MemKind(haystack), p, haystack, k)
+    _my_findnext(MemoryKind(haystack), p, haystack, k)
 end
 
 # Default fallback
@@ -46,7 +46,7 @@ function my_findnext(
 end
 
 # Fallback - if the haystack is not IsMemory of bytes, we invoke the fallback definiion
-_my_findnext(::MemKind, p, haystack, i) = @invoke my_findnext(p::Any, haystack::Any, i::Any)
+_my_findnext(::MemoryKind, p, haystack, i) = @invoke my_findnext(p::Any, haystack::Any, i::Any)
 
 # If it is bytes, we can convert the haystack to an ImmutableMemoryView,
 # and use the memory view's optimised method
