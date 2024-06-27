@@ -1,15 +1,15 @@
-MemView(v::MemView) = v
+MemoryView(v::MemoryView) = v
 
 # Array and Memory
-MemKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemView{T})
-MemKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemView{T})
-MemView(A::Memory{T}) where {T} = MutableMemView{T}(unsafe, memoryref(A), length(A))
-MemView(A::Array{T}) where {T} = MutableMemView{T}(unsafe, A.ref, length(A))
+MemKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemoryView{T})
+MemKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
+MemoryView(A::Memory{T}) where {T} = MutableMemoryView{T}(unsafe, memoryref(A), length(A))
+MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, A.ref, length(A))
 
 # Strings
-MemView(s::String) = ImmutableMemView(unsafe_wrap(Memory{UInt8}, s))
-function MemView(s::SubString)
-    memview = MemView(parent(s))
+MemoryView(s::String) = ImmutableMemoryView(unsafe_wrap(Memory{UInt8}, s))
+function MemoryView(s::SubString)
+    memview = MemoryView(parent(s))
     codesize = sizeof(codeunit(s))
     offset = codesize * s.offset
     len = s.ncodeunits * codesize
@@ -21,21 +21,21 @@ end
 
 # Special implementation for SubString{String}, which we can guarantee never
 # has out of bounds indices, unless the user previously misused @inbounds
-function MemView(s::SubString{String})
-    memview = MemView(parent(s))
+function MemoryView(s::SubString{String})
+    memview = MemoryView(parent(s))
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
-    ImmutableMemView{UInt8}(unsafe, newref, s.ncodeunits)
+    ImmutableMemoryView{UInt8}(unsafe, newref, s.ncodeunits)
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
-# implements MemView, which some AbstractStrings may not
+# implements MemoryView, which some AbstractStrings may not
 function MemKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
     # Strings are normally immutable. New, mutable string types
     # would need to overload this method.
-    hasmethod(MemView, (S,)) ? IsMemory(ImmutableMemView{C}) : NotMemory()
+    hasmethod(MemoryView, (S,)) ? IsMemory(ImmutableMemoryView{C}) : NotMemory()
 end
 
-MemView(s::Base.CodeUnits) = MemView(s.s)
+MemoryView(s::Base.CodeUnits) = MemoryView(s.s)
 
 # SubArrays
 # TODO: Identical to FastContiguousSubArray in Base
@@ -47,8 +47,8 @@ const ContiguousSubArray = SubArray{
 } where {T, N, P}
 
 MemKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemKind(P)
-function MemView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
-    memview = MemView(parent(s)::P)
+function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
+    memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))
     @boundscheck checkbounds(memview.ref.mem, inds)
     @inbounds memview[inds]

@@ -18,7 +18,7 @@ function my_findnext(p, haystack, i)
 end
 
 # String implementation - strings are not IsMemory, but
-# we can still use the MemViews interface to implement
+# we can still use the MemoryViews interface to implement
 # char searching.
 function my_findnext(
     p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, <:AbstractChar},
@@ -28,7 +28,7 @@ function my_findnext(
     i < 1 && throw(BoundsError(s, i))
     c = Char(p.x)::Char
     byte = (reinterpret(UInt32, c) >> 24) % UInt8
-    mem = MemView(s)
+    mem = MemoryView(s)
     # If the char is ASCII, then it's a single byte, and we
     # can just find that in the string.
     # Note that this is still correct for invalid UTF8 strings.
@@ -48,22 +48,22 @@ end
 # Fallback - if the haystack is not IsMemory of bytes, we invoke the fallback definiion
 _my_findnext(::MemKind, p, haystack, i) = @invoke my_findnext(p::Any, haystack::Any, i::Any)
 
-# If it is bytes, we can convert the haystack to an ImmutableMemView,
+# If it is bytes, we can convert the haystack to an ImmutableMemoryView,
 # and use the memory view's optimised method
 function _my_findnext(
-    ::IsMemory{<:MemView{UInt8}},
+    ::IsMemory{<:MemoryView{UInt8}},
     p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
     haystack,
     i,
 )
     ind = Int(i)::Int - Int(firstindex(haystack))::Int + 1
     ind < 1 && throw(BoundsError(haystack, i))
-    find_next_byte(p.x, ImmutableMemView(haystack), ind)
+    find_next_byte(p.x, ImmutableMemoryView(haystack), ind)
 end
 
 # Wrapper around memchr.
 # The use of concrete types makes this unsafe code easier to review and statically check.
-function find_next_byte(needle::UInt8, haystack::ImmutableMemView{UInt8}, i::Int)
+function find_next_byte(needle::UInt8, haystack::ImmutableMemoryView{UInt8}, i::Int)
     len = length(haystack) - i + 1
     len < 1 && return nothing
     ulen = len % UInt

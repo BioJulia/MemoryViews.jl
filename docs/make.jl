@@ -1,14 +1,14 @@
-using Documenter, MemViews
+using Documenter, MemoryViews
 
-DocMeta.setdocmeta!(MemViews, :DocTestSetup, :(using MemViews); recursive=true)
+DocMeta.setdocmeta!(MemoryViews, :DocTestSetup, :(using MemoryViews); recursive=true)
 
 makedocs(;
-    sitename="MemViews.jl",
-    modules=[MemViews],
+    sitename="MemoryViews.jl",
+    modules=[MemoryViews],
     pages=[
-        "MemViews" => "index.md",
-        "MemViews in interfaces" => "interfaces.md",
-        "MemViews in Base" => "base.md",
+        "MemoryViews" => "index.md",
+        "MemoryViews in interfaces" => "interfaces.md",
+        "MemoryViews in Base" => "base.md",
     ],
     authors="Jakob Nybo Nissen",
     checkdocs=:public,
@@ -16,7 +16,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/BioJulia/MemViews.jl.git",
+    repo="github.com/BioJulia/MemoryViews.jl.git",
     push_preview=true,
     deps=nothing,
     make=nothing,

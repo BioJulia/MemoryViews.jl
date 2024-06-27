@@ -1,5 +1,5 @@
-# MemViews.jl
-It is my hope that MemViews, or something like MemViews, will eventually
+# MemoryViews.jl
+It is my hope that MemoryViews, or something like MemoryViews, will eventually
 be moved into Base Julia.
 This is because Base Julia, too, includes code that uses the concept of a memory-backed array.
 However, Base currently lacks any kind of interface and internal API to handle memory-backed objects.
@@ -22,7 +22,7 @@ This is not a design flaw of `SubArray` - it's a perfectly fine design choice, w
 Unfortunately, it also makes it nearly impossible to write robust, low-level code using `SubArray`, because it's almost imopssible not to violate the assumptions of a subset of `SubArray`s many concrete types.
 Practically speaking, what happens is that methods taking `SubArray` fall back to only assuming what can be assumed about `AbstractArray` - which may be inefficient, and buggy (as the recurring bugs due to assumption of one-based indexing has taught us).
 
-In contrast, a `MemView{T}` is _always_ represented by exactly a `MemoryRef{T}` and an `Int` as length.
+In contrast, a `MemoryView{T}` is _always_ represented by exactly a `MemoryRef{T}` and an `Int` as length.
 You know exactly what you get.
 
 ## Design decisions
@@ -32,30 +32,30 @@ can write methods that only take mutable memory views.
 This will statically prevent users from accidentally mutating e.g. strings.
 
 #### MemKind
-The MemKind trait is used because constructing a MemView only for dispatch purposes
+The MemKind trait is used because constructing a MemoryView only for dispatch purposes
 may not be able to be optimised away by the compiler for some types (currently, strings).
 
 MemKind could be replaced with a function that returned `nothing`, or the correct
-MemView type directly, but it's nicer to dispatch on `::MemKind` than on `::Union{Nothing, Type{<:MemView}}`.
+MemoryView type directly, but it's nicer to dispatch on `::MemKind` than on `::Union{Nothing, Type{<:MemoryView}}`.
 
 ## Limitations
-* Currently, `MemView` does not make use of `Core.GenericMemory`'s additional parameters, such as
+* Currently, `MemoryView` does not make use of `Core.GenericMemory`'s additional parameters, such as
   atomicity or address space.
-  This may easily be added with a `GenericMemView` type, similar to `Memory` / `GenericMemory`.
+  This may easily be added with a `GenericMemoryView` type, similar to `Memory` / `GenericMemory`.
 
 * I can't figure out how to support reinterpreted arrays.
-  Any way I can think of doing so will sigificantly complicate `MemView`, which takes away some of
+  Any way I can think of doing so will sigificantly complicate `MemoryView`, which takes away some of
   the appeal of this type's simplicity.
   It's possible that reinterpreted arrays are so outside Julia's ordinary memory management
   that this simply can't be done.
 
-* Currently, `String`s are not backed by `Memory` in Julia. Therefore, creating a `MemView` of a string
+* Currently, `String`s are not backed by `Memory` in Julia. Therefore, creating a `MemoryView` of a string
   requires heap-allocating a new `Memory` pointing to the existing memory of the string.
   This can be fixed if `String` is re-implemented to be backed by `Memory`, but I don't know
   enough details about the implementation of `String` to know if this is practical.
 
 ## Alternative proposal
-In `examples/alternative.jl`, there is an implementation where a `MemView` is just a pointer and a length.
+In `examples/alternative.jl`, there is an implementation where a `MemoryView` is just a pointer and a length.
 This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this propsal has:
 
 * The `MemKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_
@@ -70,7 +70,7 @@ less nicely with the Julia runtime. Also, the existing `GenericMemoryRef` is ess
 * Their interaction with the GC is simpler (as there is no interaction)
 
 #### Disadvantages
-* While some low-level methods using `MemView` will just forward to calling external libraries where
+* While some low-level methods using `MemoryView` will just forward to calling external libraries where
   using a pointer is fine, many will be written in pure Julia. There, it's less nice to have raw pointers.
 * Code using pointer-based memviews must make sure to only have the views exist inside `GC.@preserve` blocks,
   which is annoying and will almost certainly be violated accidentally somewhere
