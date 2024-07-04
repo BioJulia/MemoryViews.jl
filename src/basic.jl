@@ -32,7 +32,11 @@ function Base.getindex(v::MemoryView, i::Integer)
     @inbounds ref[]
 end
 
-function Base.similar(mem::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
+function Base.similar(
+    mem::MemoryView{T1, M},
+    ::Type{T2},
+    dims::Tuple{Int},
+) where {T1, T2, M}
     len = Int(only(dims))::Int
     memory = Memory{T2}(undef, len)
     MemoryView{T2, M}(unsafe, memoryref(memory), len)

@@ -23,6 +23,7 @@ end
 # has out of bounds indices, unless the user previously misused @inbounds
 function MemoryView(s::SubString{String})
     memview = MemoryView(parent(s))
+    isempty(memview) && return memview
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
     ImmutableMemoryView{UInt8}(unsafe, newref, s.ncodeunits)
 end
