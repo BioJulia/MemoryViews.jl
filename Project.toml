@@ -1,7 +1,7 @@
 name = "MemoryViews"
 uuid = "a791c907-b98b-4e44-8f4d-e4c2362c6b2f"
 authors = ["Jakob Nybo Nissen <jakobnybonissen@gmail.com>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [compat]
 Test = "1.11"

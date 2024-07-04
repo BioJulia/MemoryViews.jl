@@ -1,6 +1,7 @@
 module MemoryViews
 
-export MemoryView, ImmutableMemoryView, MutableMemoryView, MemoryKind, IsMemory, NotMemory, inner
+export MemoryView,
+    ImmutableMemoryView, MutableMemoryView, MemoryKind, IsMemory, NotMemory, inner
 
 """
     Unsafe
@@ -78,7 +79,8 @@ struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     len::Int
 
     function MemoryView{T, M}(::Unsafe, ref::MemoryRef{T}, len::Int) where {T, M}
-        (M === Mutable || M === Immutable) || error("Parameter M must be Mutable or Immutable")
+        (M === Mutable || M === Immutable) ||
+            error("Parameter M must be Mutable or Immutable")
         new{T, M}(ref, len)
     end
 end
@@ -88,7 +90,9 @@ const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 
 # Mutable mem views can turn into immutable ones, but not vice versa
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
-ImmutableMemoryView(x::MutableMemoryView{T}) where {T} = ImmutableMemoryView{T}(unsafe, x.ref, x.len)
+function ImmutableMemoryView(x::MutableMemoryView{T}) where {T}
+    ImmutableMemoryView{T}(unsafe, x.ref, x.len)
+end
 ImmutableMemoryView(x::ImmutableMemoryView) = x
 
 """
@@ -98,7 +102,8 @@ Convert a memory view into a mutable memory view.
 Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
-MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T} = MutableMemoryView{T}(unsafe, x.ref, x.len)
+MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T} =
+    MutableMemoryView{T}(unsafe, x.ref, x.len)
 
 """
     MemoryKind

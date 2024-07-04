@@ -46,6 +46,12 @@ end
     mem = MemoryView(view("abc", 2:3))
     @test mem isa ImmutableMemoryView{UInt8}
     @test mem == [0x62, 0x63]
+
+    for s in [view("", 1:0), view("abc", 4:3), view("abc", 10:2)]
+        m = MemoryView(s)
+        @test m isa ImmutableMemoryView{UInt8}
+        @test isempty(m)
+    end
 end
 
 @testset "Immutable views are immutable" begin
@@ -296,7 +302,8 @@ end
 
 @testset "MemoryKind" begin
     @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
-    @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) == IsMemory(ImmutableMemoryView{UInt8})
+    @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
+          IsMemory(ImmutableMemoryView{UInt8})
     @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
           IsMemory(MutableMemoryView{String})
     @test MemoryKind(Matrix{Nothing}) == IsMemory(MutableMemoryView{Nothing})

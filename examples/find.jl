@@ -46,7 +46,9 @@ function my_findnext(
 end
 
 # Fallback - if the haystack is not IsMemory of bytes, we invoke the fallback definiion
-_my_findnext(::MemoryKind, p, haystack, i) = @invoke my_findnext(p::Any, haystack::Any, i::Any)
+function _my_findnext(::MemoryKind, p, haystack, i)
+    @invoke my_findnext(p::Any, haystack::Any, i::Any)
+end
 
 # If it is bytes, we can convert the haystack to an ImmutableMemoryView,
 # and use the memory view's optimised method
