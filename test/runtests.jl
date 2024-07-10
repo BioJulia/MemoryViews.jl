@@ -1,5 +1,6 @@
 using Test
 using MemoryViews
+using Aqua
 
 MUT_BACKINGS = Any[
     # Arrays
@@ -321,3 +322,5 @@ end
     @test MemoryKind(Union{}) == NotMemory()
     @test_throws Exception inner(NotMemory())
 end
+
+Aqua.test_all(MemoryViews)
