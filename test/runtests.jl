@@ -2,6 +2,8 @@ using Test
 using MemoryViews
 using Aqua
 
+MemoryViews.MemoryView(s::GenericString) = MemoryView(s.string)
+
 MUT_BACKINGS = Any[
     # Arrays
     UInt8[1, 2],
@@ -53,6 +55,10 @@ end
         @test m isa ImmutableMemoryView{UInt8}
         @test isempty(m)
     end
+
+    s = Test.GenericString("abγδf")
+    @test codeunits(s) == MemoryView(s)
+    @test codeunits(s[2:end-2]) == MemoryView(s)[2:end-1]
 end
 
 @testset "Immutable views are immutable" begin
@@ -83,10 +89,6 @@ end
     v = view(view(rand(UInt16, 19), 2:11), 3:9)
     mem = MemoryView(v)
     @test mem == v
-
-    s = SubString(Test.GenericString("dslkjad"), 2:5)
-    # This is not implemented
-    @test_throws Exception MemoryView(s)
 end
 
 memlen(x) = length(MemoryView(x))
@@ -299,6 +301,21 @@ end
         @test findnext(==(0x04), mem, 1) == 2
         @test findnext(==(0x04), mem, 3) === nothing
     end
+end
+
+@testset "Equality" begin
+    v = rand(UInt, 10)
+    m1 = MemoryView(v)
+    m2 = MemoryView(copy(v))
+    @test m1 == m2
+    @test m1 !== m2
+
+    m2 = m2[1:end-1]
+    @test m1 != m2
+    m1 = m1[1:end-2]
+    @test m1 != m2
+    m2 = m2[1:end-1]
+    @test m1 == m2
 end
 
 @testset "MemoryKind" begin

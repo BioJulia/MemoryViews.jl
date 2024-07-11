@@ -117,7 +117,7 @@ function Base.:(==)(a::MemoryView{T}, b::MemoryView{T}) where {T <: Bits}
     a.ref === b.ref && return true
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
-        bptr = Ptr{Nothing}(pointer(a))
+        bptr = Ptr{Nothing}(pointer(b))
         y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, length(a)::Int)::Cint
     end
     iszero(y)
