@@ -19,7 +19,7 @@ Can you define the subset of these types which indicate dense indices? I can't.
 Third, it's multidimensional. It may `collect` to a `Vector` or `Matrix`.
 
 This is not a design flaw of `SubArray` - it's a perfectly fine design choice, which enables `SubArray` to be extremely flexible and broadly useful.
-Unfortunately, it also makes it nearly impossible to write robust, low-level code using `SubArray`, because it's almost imopssible not to violate the assumptions of a subset of `SubArray`s many concrete types.
+Unfortunately, it also makes it nearly impossible to write robust, low-level code using `SubArray`, because it's almost impossible not to violate the assumptions of a subset of `SubArray`s many concrete types.
 Practically speaking, what happens is that methods taking `SubArray` fall back to only assuming what can be assumed about `AbstractArray` - which may be inefficient, and buggy (as the recurring bugs due to assumption of one-based indexing has taught us).
 
 In contrast, a `MemoryView{T}` is _always_ represented by exactly a `MemoryRef{T}` and an `Int` as length.
@@ -44,7 +44,7 @@ MemoryView type directly, but it's nicer to dispatch on `::MemoryKind` than on `
   This may easily be added with a `GenericMemoryView` type, similar to `Memory` / `GenericMemory`.
 
 * I can't figure out how to support reinterpreted arrays.
-  Any way I can think of doing so will sigificantly complicate `MemoryView`, which takes away some of
+  Any way I can think of doing so will significantly complicate `MemoryView`, which takes away some of
   the appeal of this type's simplicity.
   It's possible that reinterpreted arrays are so outside Julia's ordinary memory management
   that this simply can't be done.
@@ -56,7 +56,7 @@ MemoryView type directly, but it's nicer to dispatch on `::MemoryKind` than on `
 
 ## Alternative proposal
 In `examples/alternative.jl`, there is an implementation where a `MemoryView` is just a pointer and a length.
-This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this propsal has:
+This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this proposal has:
 
 * The `MemoryKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_
 * The distinction between mutable and immutable memory views
@@ -74,5 +74,5 @@ less nicely with the Julia runtime. Also, the existing `GenericMemoryRef` is ess
   using a pointer is fine, many will be written in pure Julia. There, it's less nice to have raw pointers.
 * Code using pointer-based memviews must make sure to only have the views exist inside `GC.@preserve` blocks,
   which is annoying and will almost certainly be violated accidentally somewhere
-* We can't use advantages of the existing `Memory` infrasrtructure, e.g. having a `GenericMemRef` which supports
+* We can't use advantages of the existing `Memory` infrastructure, e.g. having a `GenericMemRef` which supports
   atomic memory.

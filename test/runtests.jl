@@ -58,7 +58,7 @@ end
 
     s = Test.GenericString("abγδf")
     @test codeunits(s) == MemoryView(s)
-    @test codeunits(s[2:end-2]) == MemoryView(s)[2:end-1]
+    @test codeunits(s[2:(end - 2)]) == MemoryView(s)[2:(end - 1)]
 end
 
 @testset "Immutable views are immutable" begin
@@ -301,6 +301,35 @@ end
         @test findnext(==(0x04), mem, 1) == 2
         @test findnext(==(0x04), mem, 3) === nothing
     end
+
+    @testset "Reverse and reverse!" begin
+        for v in [
+            ["a", "abc", "a", "c", "kij"],
+            [0x09, 0x05, 0x02, 0x01],
+            [1.0f0, -10.0f5, Inf32, Inf32],
+            [nothing, nothing, nothing],
+        ]
+            @test reverse!(MemoryView(copy(v))) == MemoryView(reverse(v))
+            mem = MemoryView(v)
+            rev = reverse(mem)
+            @test rev.ref != mem.ref
+            @test rev == reverse(v)
+            @test_throws Exception reverse!(ImmutableMemoryView(v))
+        end
+    end
+
+    @testset "Cmp" begin
+        for (a, b, y) in [
+            ([0x01], [0x00], 1),
+            (UInt8[], UInt8[], 0),
+            ([0x02, 0x03], [0x02, 0x03, 0x01], -1),
+            ([0x02, 0x03, 0x01], [0x02, 0x03], 1),
+            ([0x9f], [0x9f], 0),
+            ([0x01, 0x03, 0x02], [0x01, 0x04], -1),
+        ]
+            @test cmp(MemoryView(a), MemoryView(b)) == y
+        end
+    end
 end
 
 @testset "Equality" begin
@@ -310,11 +339,11 @@ end
     @test m1 == m2
     @test m1 !== m2
 
-    m2 = m2[1:end-1]
+    m2 = m2[1:(end - 1)]
     @test m1 != m2
-    m1 = m1[1:end-2]
+    m1 = m1[1:(end - 2)]
     @test m1 != m2
-    m2 = m2[1:end-1]
+    m2 = m2[1:(end - 1)]
     @test m1 == m2
 end
 

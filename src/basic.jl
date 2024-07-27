@@ -1,3 +1,5 @@
+memory(v::MemoryView) = v.ref.mem
+
 function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     @boundscheck checkbounds(v, i)
     xT = x isa T ? x : convert(T, x)::T
@@ -14,10 +16,18 @@ function Base.iterate(x::MemoryView, i::Int=1)
     (@inbounds x[i], i + 1)
 end
 
+# Note: For zero-sized elements, this always returns 1:x.len, which may not be
+# the correct indices. However, the result is indistinguishable from the "correct"
+# result, so it doesn't matter
 function Base.parentindices(x::MemoryView)
-    byte_offset = pointer(x.ref) - pointer(x.ref.mem)
-    elem_offset = div(byte_offset % UInt, Base.elsize(x) % UInt) % Int
-    (elem_offset + 1):(elem_offset + x.len)
+    elz = Base.elsize(x)
+    if iszero(elz)
+        1:(x.len)
+    else
+        byte_offset = pointer(x.ref) - pointer(x.ref.mem)
+        elem_offset = div(byte_offset % UInt, elz % UInt) % Int
+        (elem_offset + 1):(elem_offset + x.len)
+    end
 end
 
 function Base.copy(x::MemoryView)
@@ -113,7 +123,7 @@ const Bits =
 
 function Base.:(==)(a::MemoryView{T}, b::MemoryView{T}) where {T <: Bits}
     length(a) == length(b) || return false
-    T === Union{} && return true
+    (T === Union{} || Base.issingletontype(T)) && return true
     a.ref === b.ref && return true
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
@@ -121,4 +131,41 @@ function Base.:(==)(a::MemoryView{T}, b::MemoryView{T}) where {T <: Bits}
         y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, length(a)::Int)::Cint
     end
     iszero(y)
+end
+
+function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
+    y = if a.ref !== b.ref
+        GC.@preserve a b begin
+            aptr = Ptr{Nothing}(pointer(a))
+            bptr = Ptr{Nothing}(pointer(b))
+            @ccall memcmp(
+                aptr::Ptr{Nothing},
+                bptr::Ptr{Nothing},
+                min(length(a), length(b))::Int,
+            )::Cint
+        end
+    else
+        Cint(0)
+    end
+    iszero(y) ? sign(length(a) - length(b)) : Int(y)
+end
+
+function Base.reverse!(mem::MutableMemoryView)
+    start = 1
+    stop = length(mem)
+    @inbounds for i in 1:(div(length(mem) % UInt, 2) % Int)
+        (mem[start], mem[stop]) = (mem[stop], mem[start])
+        start += 1
+        stop -= 1
+    end
+    mem
+end
+
+function Base.reverse(mem::MemoryView)
+    cp = MutableMemoryView(unsafe, copy(mem))
+    stop = length(cp) + 1
+    @inbounds for i in 1:length(cp)
+        cp[i] = mem[stop - i]
+    end
+    cp
 end

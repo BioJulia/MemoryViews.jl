@@ -39,7 +39,7 @@ data from being mutated through another variable.
 ### Constructing memory views
 Construct memory views from `x` with `MemoryView(x)`.
 MemoryViews should be constructable from any type that is stored as an array densely in memory.
-It can also be conctructed from other non-array types that are represented by a chunk of memory (like a `String`).
+It can also be constructed from other non-array types that are represented by a chunk of memory (like a `String`).
 By default, constructors exists for the memory-backed types in Base:
 
 ```jldoctest; output=false
