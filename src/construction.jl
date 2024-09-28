@@ -9,14 +9,8 @@ MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, A.ref, length(A
 # Strings
 MemoryView(s::String) = ImmutableMemoryView(unsafe_wrap(Memory{UInt8}, s))
 function MemoryView(s::SubString)
-    memview = MemoryView(parent(s))
-    codesize = sizeof(codeunit(s))
-    offset = codesize * s.offset
-    len = s.ncodeunits * codesize
-    mem = memview.ref.mem
-    span = (offset + 1):len
-    @boundscheck checkbounds(mem, span)
-    @inbounds typeof(memview)(unsafe, memoryref(mem, offset + 1), s.ncodeunits * codesize)
+    v = ImmutableMemoryView(parent(s))
+    @inbounds v[(s.offset + 1):(s.offset + s.ncodeunits)]
 end
 
 # Special implementation for SubString{String}, which we can guarantee never

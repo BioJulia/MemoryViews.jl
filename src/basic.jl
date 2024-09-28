@@ -1,5 +1,3 @@
-memory(v::MemoryView) = v.ref.mem
-
 function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     @boundscheck checkbounds(v, i)
     xT = x isa T ? x : convert(T, x)::T
@@ -8,6 +6,9 @@ function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     return v
 end
 
+# TODO: This uses the internal `.mem` field of `MemoryRef`, but AFAIK there is no
+# API in Base to get the memory from a `MemoryRef`
+Base.parent(v::MemoryView) = v.ref.mem
 Base.size(v::MemoryView) = (v.len,)
 Base.IndexStyle(::Type{<:MemoryView}) = Base.IndexLinear()
 

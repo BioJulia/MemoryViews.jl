@@ -91,6 +91,64 @@ end
     @test mem == v
 end
 
+struct CharString <: AbstractString
+    x::Vector{Char}
+end
+Base.codeunit(s::CharString, i::Int) = reinterpret(UInt32, s.x[i])
+Base.codeunit(s::CharString) = UInt32
+Base.ncodeunits(s::CharString) = length(s.x)
+Base.thisind(s::CharString, i) = i
+Base.isvalid(s::CharString, i::Integer) = in(i, 1:ncodeunits(s))
+CharString(s::String) = CharString(collect(s))
+
+function Base.nextind(s::CharString, i::Int, n::Int)
+    if iszero(n)
+        if !(iszero(i) || in(i, eachindex(s.x)))
+            throw(BoundsError(s, i))
+        else
+            i
+        end
+    else
+        in(i, 0:lastindex(s.x)) ? i + n : throw(BoundsError(s, i))
+    end
+end
+
+function Base.iterate(s::CharString, i::Int=1)
+    i > ncodeunits(s) ? nothing : (s.x[i], i + 1)
+end
+
+MemoryView(s::CharString) = MemoryView(s.x)
+
+@testset "Substrings" begin
+    for (s, i) in [
+        ("æøåac", 1:5),
+        ("æøåac", 2:4),
+        ("æøåac", 4:3),
+        ("æøåac", 1:1),
+        ("", 1:0),
+        ("儒家孟子", 2:4),
+    ]
+        ss = SubString(CharString(s), i)
+        v1 = MemoryView(ss)
+        @test v1 isa ImmutableMemoryView{Char}
+        v2 = ImmutableMemoryView(collect(s)[i])
+        @test v1 == v2
+    end
+
+    for (s, i) in [
+        ("æøåac", 1:8),
+        ("æøåac", 3:7),
+        ("æøåac", 5:4),
+        ("æøåac", 1:1),
+        ("", 1:0),
+        ("儒家孟子", 4:10),
+    ]
+        ss = SubString(s, i)
+        @test MemoryView(ss) isa ImmutableMemoryView{UInt8}
+        @test MemoryView(ss) == MemoryView(String(ss))
+    end
+end
+
 memlen(x) = length(MemoryView(x))
 @testset "Zero allocation" begin
     for v in MUT_BACKINGS
@@ -329,6 +387,14 @@ end
         ]
             @test cmp(MemoryView(a), MemoryView(b)) == y
         end
+    end
+
+    @testset "Parent" begin
+        mem = Memory{UInt16}(undef, 3)
+        vec = Base.wrap(Array, mem, (3,))
+        v = MemoryView(vec)
+        @test parent(v) === mem
+        @test parent(ImmutableMemoryView(mem)) === mem
     end
 end
 
