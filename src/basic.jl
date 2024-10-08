@@ -94,15 +94,36 @@ function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     unsafe_copyto!(dst, src)
 end
 
+# The following two methods could be collapsed, but they aren't for two reasons:
+# * To prevent ambiguity with Base
+# * Because we DON'T want this code to run with MemoryView{Union{UInt8, Int8}}.
+#   The latter might not be an issue since I don't think it's possible to construct
+#   a Fix2 with a non-concrete type, but I'm not sure. 
 function Base.findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, T},
+    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+    mem::MemoryView{UInt8},
+    start::Integer,
+)
+    _findnext(mem, p.x, start)
+end
+
+function Base.findnext(
+    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+    mem::MemoryView{Int8},
+    start::Integer,
+)
+    _findnext(mem, p.x, start)
+end
+
+@inline function _findnext(
     mem::MemoryView{T},
+    byte::Union{T},
     start::Integer,
 ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
     real_start = max(start, 1)
     v = @inbounds ImmutableMemoryView(mem[real_start:end])
-    v_ind = @something memchr(v, p.x) return nothing
+    v_ind = @something memchr(v, byte) return nothing
     v_ind + real_start - 1
 end
 
