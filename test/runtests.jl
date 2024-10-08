@@ -1,6 +1,7 @@
 using Test
 using MemoryViews
 using Aqua
+using StringViews: StringView
 
 MemoryViews.MemoryView(s::GenericString) = MemoryView(s.string)
 
@@ -433,6 +434,25 @@ end
     @test MemoryKind(Nothing) == NotMemory()
     @test MemoryKind(Union{}) == NotMemory()
     @test_throws Exception inner(NotMemory())
+end
+
+@testset "StringViews" begin
+    # Backed by mutable array
+    s = StringView([0x01, 0x02])
+    @test MemoryView(s) isa MutableMemoryView{UInt8}
+    @test MemoryView(s) == [0x01, 0x02]
+    @test MemoryKind(typeof(s)) == IsMemory{MutableMemoryView{UInt8}}()
+
+    # Backed by immutable string data
+    s = StringView(view(codeunits("abcd"), 2:4))
+    @test MemoryView(s) isa ImmutableMemoryView{UInt8}
+    @test MemoryView(s) == codeunits("bcd")
+    @test MemoryKind(typeof(s)) == IsMemory{ImmutableMemoryView{UInt8}}()
+
+    # Not backed by memory
+    s = StringView(view(0x61:0x65, 2:4))
+    @test_throws MethodError MemoryView(s)
+    @test MemoryKind(typeof(s)) == NotMemory()
 end
 
 Aqua.test_all(MemoryViews)
