@@ -55,22 +55,12 @@ foo(x) = foo(MemoryKind(typeof(x)), x)
 foo(x::AbstractString) = foo(codeunits(x))
 ```
 
-## Good to know
-* `MemoryViews.jl` currently only works on the master branch of Julia.
-* Slicing a memory view produces a memory view - it does not copy.
-
 ## Limitations
 * Many optimised fast methods for more established types like `Vector` are missing for `MemoryView`.
   These are added over time. Please make an issue or a PR as you encounter missing methods.
 
 * Currently, `MemoryView` does not make use of `Core.GenericMemory`'s additional parameters, such as atomicity or address space.
   This may easily be added with a `GenericMemoryView` type, similar to `Memory` / `GenericMemory`.
-
-* I can't figure out how to support reinterpreted arrays.
-  Any way I can think of doing so will sigificantly complicate `MemoryView`, which takes away some of
-  the appeal of this type's simplicity.
-  It's possible that reinterpreted arrays are so outside Julia's ordinary memory management
-  that this simply can't be done.
 
 * Currently, `String`s are not backed by `Memory` in Julia. Therefore, creating a `MemoryView` of a string
   requires heap-allocating a new `Memory` pointing to the existing memory of the string.
