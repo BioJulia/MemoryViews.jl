@@ -81,9 +81,9 @@ end
     @test first(mem) == UInt8('a')
     @test last(mem) == UInt8('c')
 
-    memory = Memory{Float32}(undef, 6)
+    memory = Float32[0.1, -119.2, 150.3, Inf, -Inf]
     mem = MemoryView(memory)
-    @test all(i == j for (i, j) in zip(mem, memory))
+    @test all(i === j for (i, j) in zip(mem, memory))
     @test length(mem) == length(memory)
     @test mem == memory
 
@@ -396,6 +396,16 @@ end
         v = MemoryView(vec)
         @test parent(v) === mem
         @test parent(ImmutableMemoryView(mem)) === mem
+    end
+end
+
+@testset "Iterators.reverse" begin
+    for v in Any[AbstractString["abc", "def", ""], Char['a', 'b'], UInt32[], Int16[9, 2, 1]]
+        mem = MemoryView(v)
+        it = Iterators.reverse(mem)
+        @test length(it) == length(mem)
+        @test collect(it) == reverse(mem)
+        @test Iterators.reverse(it) === ImmutableMemoryView(mem)
     end
 end
 
