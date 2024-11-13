@@ -60,6 +60,12 @@ end
     s = Test.GenericString("abγδf")
     @test codeunits(s) == MemoryView(s)
     @test codeunits(s[2:(end - 2)]) == MemoryView(s)[2:(end - 1)]
+
+    x = [1,2,3]
+    @test MemoryView{Int}(x) isa MutableMemoryView{Int}
+    @test ImmutableMemoryView{Int}(x) isa ImmutableMemoryView{Int}
+    @test_throws TypeError MemoryView{UInt32}(x)
+    @test_throws TypeError ImmutableMemoryView{UInt32}(x)
 end
 
 @testset "Immutable views are immutable" begin
