@@ -80,6 +80,24 @@ end
     @test_throws Exception unsafe_copyto!(mem, 1, mutmem, 1, 2)
 end
 
+@testset "Mightalias" begin
+    v = [1,2,3,4,5]
+    m1 = MemoryView(v)[2:3]
+    @test Base.mightalias(m1, MemoryView(v)[1:2])
+    @test Base.mightalias(m1, MemoryView(v)[3:4])
+    @test Base.mightalias(m1, MemoryView(v)[1:4])
+    @test !Base.mightalias(m1, MemoryView(v)[1:1])
+    @test !Base.mightalias(m1, MemoryView(v)[4:5])
+
+    v = string.(collect("abcdefgh"))
+    v1 = view(v, 2:6)
+    v2 = view(v, 6:7)
+    @test Base.mightalias(MemoryView(v), MemoryView(v1))
+    @test Base.mightalias(MemoryView(v), MemoryView(v2))
+    @test Base.mightalias(MemoryView(v), MemoryView(view(v, 7:8)))
+    @test !Base.mightalias(MemoryView(v1), MemoryView(view(v, 7:8)))
+end
+
 # Span of views
 @testset "Span of views" begin
     mem = MemoryView("abc")

@@ -58,12 +58,23 @@ function Base.empty(mem::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
 end
 
 Base.empty(T::Type{<:MemoryView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
-
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
 Base.strides(::MemoryView) = (1,)
+
+function Base.mightalias(a::MemoryView, b::MemoryView)
+    (isempty(a) | isempty(b)) && return false
+    parent(a) === parent(b) || return false
+    (p1, p2) = (pointer(a), pointer(b))
+    elz = Base.elsize(a)
+    return if p1 < p2
+        p1 + length(a) * elz > p2
+    else
+        p2 + length(b) * elz > p1
+    end
+end
 
 function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
     # This branch is necessary, because the memoryref can't point out of bounds.
