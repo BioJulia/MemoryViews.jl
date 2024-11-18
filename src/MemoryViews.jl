@@ -102,18 +102,19 @@ Convert a memory view into a mutable memory view.
 Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
-MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T} =
+function MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T}
     MutableMemoryView{T}(unsafe, x.ref, x.len)
+end
 
 # Constructors that allows users to specify eltype explicitly, e.g.
 # ImmutableMemoryView{UInt8}([0x01])
 # With mutability specified
 function MemoryView{T, M}(x) where {T, M}
-    (MemoryView{X, M} where X)(x)::MemoryView{T, M}
+    (MemoryView{X, M} where {X})(x)::MemoryView{T, M}
 end
 
 # With mutability unspecified
-function MemoryView{T}(x) where T
+function MemoryView{T}(x) where {T}
     MemoryView(x)::MemoryView{T}
 end
 

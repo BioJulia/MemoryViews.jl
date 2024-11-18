@@ -61,7 +61,7 @@ end
     @test codeunits(s) == MemoryView(s)
     @test codeunits(s[2:(end - 2)]) == MemoryView(s)[2:(end - 1)]
 
-    x = [1,2,3]
+    x = [1, 2, 3]
     @test MemoryView{Int}(x) isa MutableMemoryView{Int}
     @test ImmutableMemoryView{Int}(x) isa ImmutableMemoryView{Int}
     @test_throws TypeError MemoryView{UInt32}(x)
@@ -81,7 +81,7 @@ end
 end
 
 @testset "Mightalias" begin
-    v = [1,2,3,4,5]
+    v = [1, 2, 3, 4, 5]
     m1 = MemoryView(v)[2:3]
     @test Base.mightalias(m1, MemoryView(v)[1:2])
     @test Base.mightalias(m1, MemoryView(v)[3:4])
