@@ -176,5 +176,6 @@ MemoryKind(::Type{Union{}}) = NotMemory()
 
 include("construction.jl")
 include("basic.jl")
+include("experimental.jl")
 
 end # module
