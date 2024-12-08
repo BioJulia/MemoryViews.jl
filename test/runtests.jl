@@ -421,6 +421,48 @@ end
         @test parent(v) === mem
         @test parent(ImmutableMemoryView(mem)) === mem
     end
+
+    @testset "Split first and last and at" begin
+        for mem in Any[
+            MemoryView(b"abcde"),
+            MemoryView(Any["abc", "def", "ghi"]),
+            ImmutableMemoryView(rand(2, 2)),
+        ]
+            @test split_first(mem) == (mem[1], mem[2:end])
+            @test split_last(mem) == (mem[end], mem[1:(end - 1)])
+            @test split_at(mem, 1) == (mem[1:0], mem[1:end])
+            @test split_at(mem, 2) == (mem[1:1], mem[2:end])
+            @test split_at(mem, lastindex(mem)) == (mem[1:(end - 1)], mem[end:end])
+            @test split_at(mem, lastindex(mem) + 1) == (mem[1:end], mem[1:0])
+            mem = mem[2:2]
+            @test split_first(mem) == (mem[1], mem[2:end])
+            @test split_last(mem) == (mem[end], mem[1:(end - 1)])
+            mem = mem[1:0]
+            @test_throws BoundsError split_first(mem)
+            @test_throws BoundsError split_last(mem)
+        end
+    end
+
+    @testset "Split unaligned" begin
+        for v in Any[["abc", "def"], Union{Int, UInt}[1, 2, 3, 4], Signed[4, 1, 2]]
+            @test_throws Exception split_unaligned(MemoryView(v), Val(1))
+        end
+        v = MemoryView(collect(0x00:0x3f))[2:end]
+        @test_throws Exception split_unaligned(v, Val(3))
+        @test_throws Exception split_unaligned(v, Val(0))
+        @test_throws Exception split_unaligned(v, Val(-2))
+
+        @test split_unaligned(v, Val(1)) == split_at(v, 1)
+        @test split_unaligned(v, Val(4)) == split_at(v, 4)
+        @test split_unaligned(v, Val(8)) == split_at(v, 8)
+        @test split_unaligned(v, Val(16)) == split_at(v, 16)
+
+        v = MemoryView(collect(0x0000:0x003f))[3:end]
+        @test split_unaligned(v, Val(1)) == split_at(v, 1)
+        @test split_unaligned(v, Val(4)) == split_at(v, 1)
+        @test split_unaligned(v, Val(8)) == split_at(v, 3)
+        @test split_unaligned(v, Val(16)) == split_at(v, 7)
+    end
 end
 
 @testset "Iterators.reverse" begin
