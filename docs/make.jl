@@ -9,6 +9,7 @@ makedocs(;
         "MemoryViews" => "index.md",
         "MemoryViews in interfaces" => "interfaces.md",
         "MemoryViews in Base" => "base.md",
+        "Reference" => "reference.md",
     ],
     authors="Jakob Nybo Nissen",
     checkdocs=:public,

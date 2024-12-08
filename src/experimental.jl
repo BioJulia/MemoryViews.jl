@@ -16,7 +16,7 @@ See also: [`split_last`](@ref)
 julia> v = MemoryView([0x01, 0x02, 0x03]);
 
 julia> split_first(v)
-(0x01, [0x02, 0x03])
+(0x01, UInt8[0x02, 0x03])
 
 julia> split_first(v[1:1])
 (0x01, UInt8[])
@@ -47,7 +47,7 @@ See also: [`split_first`](@ref)
 julia> v = MemoryView([0x01, 0x02, 0x03]);
 
 julia> split_last(v)
-(0x03, [0x01, 0x02])
+(0x03, UInt8[0x01, 0x02])
 
 julia> split_last(v[1:1])
 (0x01, UInt8[])
