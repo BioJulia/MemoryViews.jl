@@ -463,6 +463,34 @@ end
         @test split_unaligned(v, Val(8)) == split_at(v, 3)
         @test split_unaligned(v, Val(16)) == split_at(v, 7)
     end
+
+    @testset "Find" begin
+        mem = ImmutableMemoryView([1, 2, 3, 4])
+        @test findfirst(isodd, mem) == 1
+        @test findfirst(isodd, mem[2:end]) == 2
+        @test findfirst(mem[1:0]) === nothing
+
+        @test findlast(isodd, mem) == 3
+        @test findlast(isodd, mem[1:2]) == 1
+        @test findlast(isodd, mem[1:0]) === nothing
+
+        @test findnext(isodd, mem, 0x02) == 3
+        @test findnext(isodd, mem, 3) == 3
+        @test findnext(isodd, mem, 0x04) === nothing
+        @test findnext(isodd, mem, 10) === nothing
+
+        @test_throws BoundsError findnext(isodd, mem, 0)
+        @test_throws BoundsError findnext(isodd, mem, -1)
+
+        @test findprev(isodd, mem, 4) == 3
+        @test findprev(isodd, mem, 0x03) == 3
+        @test findprev(isodd, mem, 2) == 1
+        @test findprev(isodd, mem, 0x00) === nothing
+        @test findprev(isodd, mem, -10) === nothing
+
+        @test_throws BoundsError findprev(isodd, mem, 5)
+        @test_throws BoundsError findprev(isodd, mem, 7)
+    end
 end
 
 @testset "Iterators.reverse" begin
