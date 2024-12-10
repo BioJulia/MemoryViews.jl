@@ -105,6 +105,27 @@ function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     unsafe_copyto!(dst, src)
 end
 
+# Optimised methods that don't boundscheck
+function Base.findnext(p::Function, mem::MemoryView, start::Integer)
+    i = Int(start)::Int
+    @boundscheck (i < 1 && throw(BoundsError(mem, i)))
+    @inbounds while i <= length(mem)
+        p(mem[i]) && return i
+        i += 1
+    end
+    nothing
+end
+
+function Base.findprev(p::Function, mem::MemoryView, start::Integer)
+    i = Int(start)::Int
+    @boundscheck (i > length(mem) && throw(BoundsError(mem, i)))
+    @inbounds while i > 0
+        p(mem[i]) && return i
+        i -= 1
+    end
+    nothing
+end
+
 # The following two methods could be collapsed, but they aren't for two reasons:
 # * To prevent ambiguity with Base
 # * Because we DON'T want this code to run with MemoryView{Union{UInt8, Int8}}.
