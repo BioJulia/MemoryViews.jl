@@ -484,20 +484,20 @@ end
             for T in Any[Int8, UInt8]
                 mem = MemoryView(T[6, 2, 7, 0, 2, 1])
                 @test findfirst(iszero, mem) == 4
-                @test findfirst(==(2), mem) == 2
-                @test findnext(==(2), mem, 3) == 5
-                @test findnext(==(7), mem, 4) === nothing
-                @test findnext(==(2), mem, 7) === nothing
+                @test findfirst(==(T(2)), mem) == 2
+                @test findnext(==(T(2)), mem, 3) == 5
+                @test findnext(==(T(7)), mem, 4) === nothing
+                @test findnext(==(T(2)), mem, 7) === nothing
                 @test_throws BoundsError findnext(iszero, mem, 0)
                 @test_throws BoundsError findnext(iszero, mem, -3)
 
                 @test findlast(iszero, mem) == 4
                 @test findprev(iszero, mem, 3) === nothing
                 @test findprev(iszero, mem, 4) == 4
-                @test findprev(==(2), mem, 5) == 5
-                @test findprev(==(2), mem, 4) == 2
-                @test findprev(==(9), mem, 3) === nothing
-                @test findprev(==(2), mem, -2) === nothing
+                @test findprev(==(T(2)), mem, 5) == 5
+                @test findprev(==(T(2)), mem, 4) == 2
+                @test findprev(==(T(9)), mem, 3) === nothing
+                @test findprev(==(T(2)), mem, -2) === nothing
                 @test findprev(iszero, mem, 0) === nothing
                 @test_throws BoundsError findprev(iszero, mem, 7)
             end
