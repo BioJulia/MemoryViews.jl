@@ -152,10 +152,10 @@ end
 
 function Base.findnext(
     ::typeof(iszero),
-    mem::Union{MemoryViews.MemoryView{Int8}, MemoryViews.MemoryView{UInt8}},
+    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
     i::Integer,
 )
-    _findnext(mem, zero(eltype(mem), i))
+    _findnext(mem, zero(eltype(mem)), i)
 end
 
 Base.@propagate_inbounds function _findnext(
@@ -212,10 +212,10 @@ end
 
 function Base.findprev(
     ::typeof(iszero),
-    mem::Union{MemoryViews.MemoryView{Int8}, MemoryViews.MemoryView{UInt8}},
+    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
     i::Integer,
 )
-    _findprev(mem, zero(eltype(mem), i))
+    _findprev(mem, zero(eltype(mem)), i)
 end
 
 Base.@propagate_inbounds function _findprev(
