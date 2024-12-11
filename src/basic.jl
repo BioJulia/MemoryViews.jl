@@ -227,8 +227,7 @@ Base.@propagate_inbounds function _findprev(
     @boundscheck (start > length(mem) && throw(BoundsError(mem, start)))
     start < 1 && return nothing
     im = @inbounds truncate(ImmutableMemoryView(mem), start)
-    v_ind = @something memrchr(im, byte) return nothing
-    v_ind + start - 1
+    memrchr(im, byte)
 end
 
 function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
