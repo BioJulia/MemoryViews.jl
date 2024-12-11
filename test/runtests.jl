@@ -372,19 +372,6 @@ end
         @test v2 == v1
     end
 
-    @testset "Find" begin
-        mem = MemoryView([4, 3, 2])
-        @test findfirst(==(2), mem) == 3
-
-        mem = MemoryView(Int8[6, 2, 7, 0, 2])
-        @test findfirst(iszero, mem) == 4
-        @test findfirst(==(Int8(0)), mem) == 4
-
-        mem = MemoryView(UInt8[1, 4, 2, 5, 6])
-        @test findnext(==(0x04), mem, 1) == 2
-        @test findnext(==(0x04), mem, 3) === nothing
-    end
-
     @testset "Reverse and reverse!" begin
         for v in [
             ["a", "abc", "a", "c", "kij"],
@@ -462,6 +449,75 @@ end
         @test split_unaligned(v, Val(4)) == split_at(v, 1)
         @test split_unaligned(v, Val(8)) == split_at(v, 3)
         @test split_unaligned(v, Val(16)) == split_at(v, 7)
+    end
+
+    @testset "Find" begin
+        @testset "Generic find" begin
+            mem = ImmutableMemoryView([1, 2, 3, 4])
+            @test findfirst(isodd, mem) == 1
+            @test findfirst(isodd, mem[2:end]) == 2
+            @test findfirst(mem[1:0]) === nothing
+
+            @test findlast(isodd, mem) == 3
+            @test findlast(isodd, mem[1:2]) == 1
+            @test findlast(isodd, mem[1:0]) === nothing
+
+            @test findnext(isodd, mem, 0x02) == 3
+            @test findnext(isodd, mem, 3) == 3
+            @test findnext(isodd, mem, 0x04) === nothing
+            @test findnext(isodd, mem, 10) === nothing
+
+            @test_throws BoundsError findnext(isodd, mem, 0)
+            @test_throws BoundsError findnext(isodd, mem, -1)
+
+            @test findprev(isodd, mem, 4) == 3
+            @test findprev(isodd, mem, 0x03) == 3
+            @test findprev(isodd, mem, 2) == 1
+            @test findprev(isodd, mem, 0x00) === nothing
+            @test findprev(isodd, mem, -10) === nothing
+
+            @test_throws BoundsError findprev(isodd, mem, 5)
+            @test_throws BoundsError findprev(isodd, mem, 7)
+        end
+
+        @testset "Memchr routines" begin
+            for T in Any[Int8, UInt8]
+                mem = MemoryView(T[6, 2, 7, 0, 2, 1])
+                @test findfirst(iszero, mem) == 4
+                @test findfirst(==(T(2)), mem) == 2
+                @test findnext(==(T(2)), mem, 3) == 5
+                @test findnext(==(T(7)), mem, 4) === nothing
+                @test findnext(==(T(2)), mem, 7) === nothing
+                @test_throws BoundsError findnext(iszero, mem, 0)
+                @test_throws BoundsError findnext(iszero, mem, -3)
+
+                @test findlast(iszero, mem) == 4
+                @test findprev(iszero, mem, 3) === nothing
+                @test findprev(iszero, mem, 4) == 4
+                @test findprev(==(T(2)), mem, 5) == 5
+                @test findprev(==(T(2)), mem, 4) == 2
+                @test findprev(==(T(9)), mem, 3) === nothing
+                @test findprev(==(T(2)), mem, -2) === nothing
+                @test findprev(iszero, mem, 0) === nothing
+                @test_throws BoundsError findprev(iszero, mem, 7)
+            end
+            mem = MemoryView(Int8[2, 3, -1])
+            @test findfirst(==(0xff), mem) === nothing
+            @test findprev(==(0xff), mem, 3) === nothing
+        end
+
+        @testset "Find" begin
+            mem = MemoryView([4, 3, 2])
+            @test findfirst(==(2), mem) == 3
+
+            mem = MemoryView(Int8[6, 2, 7, 0, 2])
+            @test findfirst(iszero, mem) == 4
+            @test findfirst(==(Int8(0)), mem) == 4
+
+            mem = MemoryView(UInt8[1, 4, 2, 5, 6])
+            @test findnext(==(0x04), mem, 1) == 2
+            @test findnext(==(0x04), mem, 3) === nothing
+        end
     end
 end
 

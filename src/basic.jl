@@ -43,11 +43,7 @@ function Base.getindex(v::MemoryView, i::Integer)
     @inbounds ref[]
 end
 
-function Base.similar(
-    mem::MemoryView{T1, M},
-    ::Type{T2},
-    dims::Tuple{Int},
-) where {T1, T2, M}
+function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
     len = Int(only(dims))::Int
     memory = Memory{T2}(undef, len)
     MemoryView{T2, M}(unsafe, memoryref(memory), len)
@@ -89,6 +85,23 @@ end
 Base.getindex(v::MemoryView, ::Colon) = v
 Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
 
+function truncate(mem::MemoryView, include_last::Integer)
+    lst = Int(include_last)::Int
+    @boundscheck if (lst % UInt) > length(mem) % UInt
+        throw(BoundsError(mem, lst))
+    end
+    typeof(mem)(unsafe, mem.ref, lst)
+end
+
+function truncate_start_nonempty(mem::MemoryView, from::Integer)
+    frm = Int(from)::Int
+    @boundscheck if ((frm - 1) % UInt) ≥ length(mem) % UInt
+        throw(BoundsError(mem, frm))
+    end
+    newref = @inbounds memoryref(mem.ref, frm)
+    typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+end
+
 function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     iszero(length(src)) && return dst
     @inbounds unsafe_copyto!(dst.ref, src.ref, length(src))
@@ -103,6 +116,17 @@ end
 function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     @boundscheck length(dst) ≥ length(src) || throw(BoundsError(dst, eachindex(src)))
     unsafe_copyto!(dst, src)
+end
+
+# Optimised methods that don't boundscheck
+function Base.findnext(p::Function, mem::MemoryView, start::Integer)
+    i = Int(start)::Int
+    @boundscheck (i < 1 && throw(BoundsError(mem, i)))
+    @inbounds while i <= length(mem)
+        p(mem[i]) && return i
+        i += 1
+    end
+    nothing
 end
 
 # The following two methods could be collapsed, but they aren't for two reasons:
@@ -126,16 +150,25 @@ function Base.findnext(
     _findnext(mem, p.x, start)
 end
 
-@inline function _findnext(
+function Base.findnext(
+    ::typeof(iszero),
+    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+    i::Integer,
+)
+    _findnext(mem, zero(eltype(mem)), i)
+end
+
+Base.@propagate_inbounds function _findnext(
     mem::MemoryView{T},
-    byte::Union{T},
+    byte::T,
     start::Integer,
 ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
-    real_start = max(start, 1)
-    v = @inbounds ImmutableMemoryView(mem[real_start:end])
-    v_ind = @something memchr(v, byte) return nothing
-    v_ind + real_start - 1
+    @boundscheck(start < 1 && throw(BoundsError(mem, start)))
+    start > length(mem) && return nothing
+    im = @inbounds truncate_start_nonempty(ImmutableMemoryView(mem), start)
+    v_ind = @something memchr(im, byte) return nothing
+    v_ind + start - 1
 end
 
 function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
@@ -143,6 +176,65 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
     GC.@preserve mem begin
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memchr(
+            ptr::Ptr{UInt8},
+            (byte % UInt8)::UInt8,
+            length(mem)::Int,
+        )::Ptr{Cvoid}
+    end
+    p == C_NULL ? nothing : (p - ptr) % Int + 1
+end
+
+function Base.findprev(p::Function, mem::MemoryView, start::Integer)
+    i = Int(start)::Int
+    @boundscheck (i > length(mem) && throw(BoundsError(mem, i)))
+    @inbounds while i > 0
+        p(mem[i]) && return i
+        i -= 1
+    end
+    nothing
+end
+
+function Base.findprev(
+    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+    mem::MemoryView{UInt8},
+    start::Integer,
+)
+    _findprev(mem, p.x, start)
+end
+
+function Base.findprev(
+    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+    mem::MemoryView{Int8},
+    start::Integer,
+)
+    _findprev(mem, p.x, start)
+end
+
+function Base.findprev(
+    ::typeof(iszero),
+    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+    i::Integer,
+)
+    _findprev(mem, zero(eltype(mem)), i)
+end
+
+Base.@propagate_inbounds function _findprev(
+    mem::MemoryView{T},
+    byte::T,
+    start::Integer,
+) where {T <: Union{UInt8, Int8}}
+    start = Int(start)::Int
+    @boundscheck (start > length(mem) && throw(BoundsError(mem, start)))
+    start < 1 && return nothing
+    im = @inbounds truncate(ImmutableMemoryView(mem), start)
+    memrchr(im, byte)
+end
+
+function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
+    isempty(mem) && return nothing
+    GC.@preserve mem begin
+        ptr = Ptr{UInt8}(pointer(mem))
+        p = @ccall memrchr(
             ptr::Ptr{UInt8},
             (byte % UInt8)::UInt8,
             length(mem)::Int,
