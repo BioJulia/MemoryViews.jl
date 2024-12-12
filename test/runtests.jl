@@ -553,6 +553,11 @@ end
     m1 = MemoryView(Union{Int, UInt}[-1])
     m2 = MemoryView(Union{Int, UInt}[typemax(UInt)])
     @test m1 != m2
+
+    m1 = MemoryView([1, 2, 3])
+    m2 = ImmutableMemoryView([1, 2, 3])
+    @test m1 == m2
+    @test m2 == m1
 end
 
 @testset "MemoryKind" begin
