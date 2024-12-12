@@ -444,6 +444,10 @@ end
         @test split_unaligned(v, Val(8)) == split_at(v, 8)
         @test split_unaligned(v, Val(16)) == split_at(v, 16)
 
+        v = v[2:4]
+        @test split_unaligned(v, Val(16)) == split_at(v, length(v) + 1)
+        @test split_unaligned(v, Val(8)) == split_at(v, length(v) + 1)
+
         v = MemoryView(collect(0x0000:0x003f))[3:end]
         @test split_unaligned(v, Val(1)) == split_at(v, 1)
         @test split_unaligned(v, Val(4)) == split_at(v, 1)
@@ -544,6 +548,11 @@ end
     @test m1 != m2
     m2 = m2[1:(end - 1)]
     @test m1 == m2
+
+    # These only differ in the type metadata, make sure they are distinguished
+    m1 = MemoryView(Union{Int, UInt}[-1])
+    m2 = MemoryView(Union{Int, UInt}[typemax(UInt)])
+    @test m1 != m2
 end
 
 @testset "MemoryKind" begin

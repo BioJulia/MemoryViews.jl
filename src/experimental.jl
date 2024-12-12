@@ -28,9 +28,7 @@ ERROR: BoundsError: attempt to access 0-element MutableMemoryView{UInt8} at inde
 """
 function split_first(v::MemoryView)
     @boundscheck checkbounds(v, 1)
-    newref = @inbounds memoryref(v.ref, 1 + (length(v) > 1))
-    fst = @inbounds v[1]
-    (fst, typeof(v)(unsafe, newref, length(v) - 1))
+    (@inbounds(v[1]), @inbounds(truncate_start(v, 2)))
 end
 
 """
@@ -59,8 +57,7 @@ ERROR: BoundsError: attempt to access 0-element MutableMemoryView{UInt8} at inde
 """
 function split_last(v::MemoryView)
     @boundscheck checkbounds(v, 1)
-    lst = @inbounds v[end]
-    (lst, typeof(v)(unsafe, v.ref, length(v) - 1))
+    (@inbounds(v[end]), @inbounds(truncate(v, length(v) - 1)))
 end
 
 """
@@ -82,10 +79,7 @@ julia> split_at(MemoryView(Int8[1, 2, 3]), 4)
 """
 function split_at(v::MemoryView, i::Int)
     @boundscheck checkbounds(1:(lastindex(v) + 1), i)
-    fst = typeof(v)(unsafe, v.ref, i - 1)
-    ref = i > lastindex(v) ? v.ref : @inbounds memoryref(v.ref, i)
-    lst = typeof(v)(unsafe, ref, length(v) - i + 1)
-    (fst, lst)
+    (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
 end
 
 """
@@ -118,6 +112,6 @@ function split_unaligned(v::MemoryView, ::Val{A}) where {A}
     # this will be compiled away
     iszero(sz) && return (typeof(v)(unsafe, v.ref, 0), v)
     unaligned_bytes = ((alignment - (UInt(pointer(v)) & mask)) & mask)
-    n_elements = div(unaligned_bytes, sz % UInt) % Int
+    n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
     @inbounds split_at(v, n_elements + 1)
 end
