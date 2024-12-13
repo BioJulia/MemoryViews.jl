@@ -60,7 +60,10 @@ Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
 Base.strides(::MemoryView) = (1,)
 
-function Base.mightalias(a::MemoryView, b::MemoryView)
+# For two distinct element types, they can't alias
+Base.mightalias(::MemoryView, ::MemoryView) = false
+
+function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
     (isempty(a) | isempty(b)) && return false
     parent(a) === parent(b) || return false
     (p1, p2) = (pointer(a), pointer(b))
@@ -70,6 +73,19 @@ function Base.mightalias(a::MemoryView, b::MemoryView)
     else
         p2 + length(b) * elz > p1
     end
+end
+
+# We don't include strings here because this union is used for mightalias
+# checks, which are done implicitly, and we don't want to construct memory
+# views from strings implicitly, since that currently allocates.
+const KNOWN_MEM_BACKED = Union{Array, Memory, ContiguousSubArray}
+
+function Base.mightalias(a::MemoryView, b::KNOWN_MEM_BACKED)
+    Base.mightalias(a, ImmutableMemoryView(b))
+end
+
+function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryView)
+    Base.mightalias(ImmutableMemoryView(a), b)
 end
 
 function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
