@@ -96,6 +96,12 @@ end
     @test Base.mightalias(MemoryView(v), MemoryView(v2))
     @test Base.mightalias(MemoryView(v), MemoryView(view(v, 7:8)))
     @test !Base.mightalias(MemoryView(v1), MemoryView(view(v, 7:8)))
+
+    v1 = [1, 2, 3]
+    v2 = UInt[1, 2, 3]
+    @test !Base.mightalias(v1, v2)
+    @test Base.mightalias(MemoryView(v1)[2:2], v1)
+    @test Base.mightalias(view(v1, 2:3), MemoryView(v1))
 end
 
 # Span of views
