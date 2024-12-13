@@ -49,7 +49,7 @@ function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {
     MemoryView{T2, M}(unsafe, memoryref(memory), len)
 end
 
-function Base.empty(mem::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
+function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
     MemoryView{T2, M}(unsafe, memoryref(Memory{T2}()), 0)
 end
 
@@ -83,7 +83,7 @@ function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
 end
 
 Base.getindex(v::MemoryView, ::Colon) = v
-Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
+Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
 
 function truncate(mem::MemoryView, include_last::Integer)
     lst = Int(include_last)::Int
@@ -99,6 +99,15 @@ function truncate_start_nonempty(mem::MemoryView, from::Integer)
         throw(BoundsError(mem, frm))
     end
     newref = @inbounds memoryref(mem.ref, frm)
+    typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+end
+
+function truncate_start(mem::MemoryView, from::Integer)
+    frm = Int(from)::Int
+    @boundscheck if ((frm - 1) % UInt) > length(mem) % UInt
+        throw(BoundsError(mem, frm))
+    end
+    newref = @inbounds memoryref(mem.ref, frm - (from == length(mem) + 1))
     typeof(mem)(unsafe, newref, length(mem) - frm + 1)
 end
 
@@ -243,12 +252,20 @@ function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, U
     p == C_NULL ? nothing : (p - ptr) % Int + 1
 end
 
-const Bits =
-    Union{Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Char}
+const BitsTypes =
+    (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Char)
+const Bits = Union{BitsTypes...}
+const BitMemory = Union{map(T -> MemoryView{T}, BitsTypes)...}
 
-function Base.:(==)(a::MemoryView{T}, b::MemoryView{T}) where {T <: Bits}
+# This dispatch makes sure that, if they have the same element bitstype, but the views
+# are of different types due to mutability, we still dispatch to the correct methpd.
+Base.:(==)(a::ImmutableMemoryView, b::MutableMemoryView) = a == ImmutableMemoryView(b)
+Base.:(==)(a::MutableMemoryView, b::ImmutableMemoryView) = ImmutableMemoryView(a) == b
+
+# Make sure to only dispatch if it's the exact same memory type.
+function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
     length(a) == length(b) || return false
-    (T === Union{} || Base.issingletontype(T)) && return true
+    (eltype(a) === Union{} || Base.issingletontype(eltype(a))) && return true
     a.ref === b.ref && return true
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
