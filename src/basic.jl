@@ -33,7 +33,7 @@ end
 
 function Base.copy(x::MemoryView)
     isempty(x) && return x
-    newmem = @inbounds x.ref.mem[parentindices(x)]
+    newmem = @inbounds x.ref.mem[only(parentindices(x))]
     typeof(x)(unsafe, memoryref(newmem), x.len)
 end
 
