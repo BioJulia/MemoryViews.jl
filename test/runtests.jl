@@ -306,13 +306,13 @@ end
 
     @testset "Parentindices" begin
         mem = MemoryView(view(codeunits("lkdjfldfe"), 3:8))[2:6]
-        @test parentindices(mem) == 4:8
+        @test parentindices(mem) == (4:8,)
 
         mem = MemoryView(UInt32[2, 5, 2, 1, 6, 8])[4:end]
-        @test parentindices(mem) == 4:6
+        @test parentindices(mem) == (4:6,)
 
         mem = MemoryView(view(Vector{String}(undef, 10), 5:7))
-        @test parentindices(mem) == 5:7
+        @test parentindices(mem) == (5:7,)
     end
 
     @testset "Similar and empty" begin

@@ -23,17 +23,17 @@ end
 function Base.parentindices(x::MemoryView)
     elz = Base.elsize(x)
     if iszero(elz)
-        1:(x.len)
+        (1:(x.len),)
     else
         byte_offset = pointer(x.ref) - pointer(x.ref.mem)
         elem_offset = div(byte_offset % UInt, elz % UInt) % Int
-        (elem_offset + 1):(elem_offset + x.len)
+        ((elem_offset + 1):(elem_offset + x.len),)
     end
 end
 
 function Base.copy(x::MemoryView)
     isempty(x) && return x
-    newmem = @inbounds x.ref.mem[parentindices(x)]
+    newmem = @inbounds x.ref.mem[only(parentindices(x))]
     typeof(x)(unsafe, memoryref(newmem), x.len)
 end
 
