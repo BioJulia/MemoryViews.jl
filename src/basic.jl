@@ -211,8 +211,8 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memchr(
             ptr::Ptr{UInt8},
-            (byte % UInt8)::UInt8,
-            length(mem)::Int,
+            (byte % UInt8)::Cint,
+            length(mem)::Csize_t,
         )::Ptr{Cvoid}
     end
     p == C_NULL ? nothing : (p - ptr) % Int + 1
@@ -270,8 +270,8 @@ function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, U
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memrchr(
             ptr::Ptr{UInt8},
-            (byte % UInt8)::UInt8,
-            length(mem)::Int,
+            (byte % UInt8)::Cint,
+            length(mem)::Csize_t,
         )::Ptr{Cvoid}
     end
     p == C_NULL ? nothing : (p - ptr) % Int + 1
