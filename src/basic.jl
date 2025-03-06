@@ -328,14 +328,17 @@ function Base.reverse!(mem::MutableMemoryView)
     mem
 end
 
-# TODO: No need to copy
 function Base.reverse(mem::MemoryView)
-    cp = MutableMemoryView(unsafe, copy(mem))
+    cp = similar(mem)
     stop = length(cp) + 1
     @inbounds for i in 1:length(cp)
         cp[i] = mem[stop - i]
     end
-    cp
+    return if mem isa MutableMemoryView
+        cp
+    else
+        ImmutableMemoryView(cp)
+    end
 end
 
 struct ReverseMemoryView{T}

@@ -388,10 +388,15 @@ end
             @test reverse!(MemoryView(copy(v))) == MemoryView(reverse(v))
             mem = MemoryView(v)
             rev = reverse(mem)
+            @test typeof(rev) == typeof(mem)
             @test rev.ref != mem.ref
             @test rev == reverse(v)
             @test_throws Exception reverse!(ImmutableMemoryView(v))
         end
+        mem = MemoryView("abcd")
+        rev = reverse(mem)
+        @test rev == b"dcba"
+        @test rev isa ImmutableMemoryView{UInt8}
     end
 
     @testset "Cmp" begin
