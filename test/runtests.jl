@@ -434,6 +434,12 @@ end
             @test_throws BoundsError split_first(mem)
             @test_throws BoundsError split_last(mem)
         end
+
+        # Split empty mem at
+        mem = MemoryView(UInt16[])
+        (v1, v2) = split_at(mem, 1)
+        @test v1 == v2
+        @test isempty(v1)
     end
 
     @testset "Split unaligned" begin

@@ -101,6 +101,8 @@ end
 Base.getindex(v::MemoryView, ::Colon) = v
 Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
 
+# Efficient way to get `mem[1:include_last]`.
+# include_last must be in 0:length(mem)
 function truncate(mem::MemoryView, include_last::Integer)
     lst = Int(include_last)::Int
     @boundscheck if (lst % UInt) > length(mem) % UInt
@@ -109,6 +111,8 @@ function truncate(mem::MemoryView, include_last::Integer)
     typeof(mem)(unsafe, mem.ref, lst)
 end
 
+# Efficient way to get `mem[from:end]`.
+# From must be in 1:length(mem).
 function truncate_start_nonempty(mem::MemoryView, from::Integer)
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) ≥ length(mem) % UInt
@@ -118,11 +122,14 @@ function truncate_start_nonempty(mem::MemoryView, from::Integer)
     typeof(mem)(unsafe, newref, length(mem) - frm + 1)
 end
 
+# Efficient way to get `mem[from:end]`.
+# From must be in 1:length(mem)+1.
 function truncate_start(mem::MemoryView, from::Integer)
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) > length(mem) % UInt
         throw(BoundsError(mem, frm))
     end
+    frm == 1 && return mem
     newref = @inbounds memoryref(mem.ref, frm - (from == length(mem) + 1))
     typeof(mem)(unsafe, newref, length(mem) - frm + 1)
 end
