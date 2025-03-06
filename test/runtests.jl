@@ -327,7 +327,7 @@ end
         mem = MemoryView("abc")
         mem2 = similar(mem)
         @test length(mem2) == length(mem)
-        @test typeof(mem2) == typeof(mem)
+        @test typeof(mem2) == MutableMemoryView{UInt8}
 
         mem = MemoryView(String["", "", ""])
         mem2 = similar(mem, Int, 4)
