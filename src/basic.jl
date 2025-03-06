@@ -44,9 +44,11 @@ function Base.getindex(v::MemoryView, i::Integer)
 end
 
 function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
-    len = Int(only(dims))::Int
+    len = only(dims)
     memory = Memory{T2}(undef, len)
-    MemoryView{T2, M}(unsafe, memoryref(memory), len)
+    # Note: `similar` needs to construct a mutable memory view, even if the input
+    # type is not mutable
+    MemoryView(memory)
 end
 
 function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
@@ -326,6 +328,7 @@ function Base.reverse!(mem::MutableMemoryView)
     mem
 end
 
+# TODO: No need to copy
 function Base.reverse(mem::MemoryView)
     cp = MutableMemoryView(unsafe, copy(mem))
     stop = length(cp) + 1
