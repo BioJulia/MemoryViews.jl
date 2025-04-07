@@ -28,7 +28,7 @@ ERROR: BoundsError: attempt to access 0-element MutableMemoryView{UInt8} at inde
 """
 function split_first(v::MemoryView)
     @boundscheck checkbounds(v, 1)
-    (@inbounds(v[1]), @inbounds(truncate_start(v, 2)))
+    return (@inbounds(v[1]), @inbounds(truncate_start(v, 2)))
 end
 
 """
@@ -57,7 +57,7 @@ ERROR: BoundsError: attempt to access 0-element MutableMemoryView{UInt8} at inde
 """
 function split_last(v::MemoryView)
     @boundscheck checkbounds(v, 1)
-    (@inbounds(v[end]), @inbounds(truncate(v, length(v) - 1)))
+    return (@inbounds(v[end]), @inbounds(truncate(v, length(v) - 1)))
 end
 
 """
@@ -79,7 +79,7 @@ julia> split_at(MemoryView(Int8[1, 2, 3]), 4)
 """
 function split_at(v::MemoryView, i::Int)
     @boundscheck checkbounds(1:(lastindex(v) + 1), i)
-    (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
+    return (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
 end
 
 """
@@ -115,5 +115,5 @@ function split_unaligned(v::MemoryView, ::Val{A}) where {A}
     iszero(sz) && return (typeof(v)(unsafe, v.ref, 0), v)
     unaligned_bytes = ((alignment - (UInt(pointer(v)) & mask)) & mask)
     n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
-    @inbounds split_at(v, n_elements + 1)
+    return @inbounds split_at(v, n_elements + 1)
 end

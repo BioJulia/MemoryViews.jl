@@ -10,7 +10,7 @@ MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, A.ref, length(A
 MemoryView(s::String) = ImmutableMemoryView(unsafe_wrap(Memory{UInt8}, s))
 function MemoryView(s::SubString)
     v = ImmutableMemoryView(parent(s))
-    @inbounds v[(s.offset + 1):(s.offset + s.ncodeunits)]
+    return @inbounds v[(s.offset + 1):(s.offset + s.ncodeunits)]
 end
 
 # Special implementation for SubString{String}, which we can guarantee never
@@ -19,7 +19,7 @@ function MemoryView(s::SubString{String})
     memview = MemoryView(parent(s))
     isempty(memview) && return memview
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
-    ImmutableMemoryView{UInt8}(unsafe, newref, s.ncodeunits)
+    return ImmutableMemoryView{UInt8}(unsafe, newref, s.ncodeunits)
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
@@ -27,7 +27,7 @@ end
 function MemoryKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
     # Strings are normally immutable. New, mutable string types
     # would need to overload this method.
-    hasmethod(MemoryView, (S,)) ? IsMemory(ImmutableMemoryView{C}) : NotMemory()
+    return hasmethod(MemoryView, (S,)) ? IsMemory(ImmutableMemoryView{C}) : NotMemory()
 end
 
 MemoryView(s::Base.CodeUnits) = MemoryView(s.s)
@@ -46,5 +46,5 @@ function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))
     @boundscheck checkbounds(memview.ref.mem, inds)
-    @inbounds memview[inds]
+    return @inbounds memview[inds]
 end

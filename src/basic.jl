@@ -12,9 +12,9 @@ Base.parent(v::MemoryView) = v.ref.mem
 Base.size(v::MemoryView) = (v.len,)
 Base.IndexStyle(::Type{<:MemoryView}) = Base.IndexLinear()
 
-function Base.iterate(x::MemoryView, i::Int=1)
+function Base.iterate(x::MemoryView, i::Int = 1)
     ((i - 1) % UInt) < (length(x) % UInt) || return nothing
-    (@inbounds x[i], i + 1)
+    return (@inbounds x[i], i + 1)
 end
 
 # Note: For zero-sized elements, this always returns 1:x.len, which may not be
@@ -22,7 +22,7 @@ end
 # result, so it doesn't matter
 function Base.parentindices(x::MemoryView)
     elz = Base.elsize(x)
-    if iszero(elz)
+    return if iszero(elz)
         (1:(x.len),)
     else
         byte_offset = pointer(x.ref) - pointer(x.ref.mem)
@@ -34,13 +34,13 @@ end
 function Base.copy(x::MemoryView)
     isempty(x) && return x
     newmem = @inbounds x.ref.mem[only(parentindices(x))]
-    typeof(x)(unsafe, memoryref(newmem), x.len)
+    return typeof(x)(unsafe, memoryref(newmem), x.len)
 end
 
 function Base.getindex(v::MemoryView, i::Integer)
     @boundscheck checkbounds(v, i)
     ref = @inbounds memoryref(v.ref, i)
-    @inbounds ref[]
+    return @inbounds ref[]
 end
 
 function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {T1, T2, M}
@@ -48,11 +48,11 @@ function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {
     memory = Memory{T2}(undef, len)
     # Note: `similar` needs to construct a mutable memory view, even if the input
     # type is not mutable
-    MemoryView(memory)
+    return MemoryView(memory)
 end
 
 function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
-    MemoryView{T2, M}(unsafe, memoryref(Memory{T2}()), 0)
+    return MemoryView{T2, M}(unsafe, memoryref(Memory{T2}()), 0)
 end
 
 Base.empty(T::Type{<:MemoryView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
@@ -83,11 +83,11 @@ end
 const KNOWN_MEM_BACKED = Union{Array, Memory, ContiguousSubArray}
 
 function Base.mightalias(a::MemoryView, b::KNOWN_MEM_BACKED)
-    Base.mightalias(a, ImmutableMemoryView(b))
+    return Base.mightalias(a, ImmutableMemoryView(b))
 end
 
 function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryView)
-    Base.mightalias(ImmutableMemoryView(a), b)
+    return Base.mightalias(ImmutableMemoryView(a), b)
 end
 
 function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
@@ -97,7 +97,7 @@ function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
     isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, Int(first(idx))::Int)
-    typeof(v)(unsafe, newref, length(idx))
+    return typeof(v)(unsafe, newref, length(idx))
 end
 
 Base.getindex(v::MemoryView, ::Colon) = v
@@ -110,7 +110,7 @@ function truncate(mem::MemoryView, include_last::Integer)
     @boundscheck if (lst % UInt) > length(mem) % UInt
         throw(BoundsError(mem, lst))
     end
-    typeof(mem)(unsafe, mem.ref, lst)
+    return typeof(mem)(unsafe, mem.ref, lst)
 end
 
 # Efficient way to get `mem[from:end]`.
@@ -121,7 +121,7 @@ function truncate_start_nonempty(mem::MemoryView, from::Integer)
         throw(BoundsError(mem, frm))
     end
     newref = @inbounds memoryref(mem.ref, frm)
-    typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+    return typeof(mem)(unsafe, newref, length(mem) - frm + 1)
 end
 
 # Efficient way to get `mem[from:end]`.
@@ -133,7 +133,7 @@ function truncate_start(mem::MemoryView, from::Integer)
     end
     frm == 1 && return mem
     newref = @inbounds memoryref(mem.ref, frm - (from == length(mem) + 1))
-    typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+    return typeof(mem)(unsafe, newref, length(mem) - frm + 1)
 end
 
 function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
@@ -144,12 +144,12 @@ end
 
 function Base.copy!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     @boundscheck length(dst) == length(src) || throw(BoundsError(dst, eachindex(src)))
-    unsafe_copyto!(dst, src)
+    return unsafe_copyto!(dst, src)
 end
 
 function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     @boundscheck length(dst) ≥ length(src) || throw(BoundsError(dst, eachindex(src)))
-    unsafe_copyto!(dst, src)
+    return unsafe_copyto!(dst, src)
 end
 
 # Optimised methods that don't boundscheck
@@ -160,49 +160,49 @@ function Base.findnext(p::Function, mem::MemoryView, start::Integer)
         p(mem[i]) && return i
         i += 1
     end
-    nothing
+    return nothing
 end
 
 # The following two methods could be collapsed, but they aren't for two reasons:
 # * To prevent ambiguity with Base
 # * Because we DON'T want this code to run with MemoryView{Union{UInt8, Int8}}.
 #   The latter might not be an issue since I don't think it's possible to construct
-#   a Fix2 with a non-concrete type, but I'm not sure. 
+#   a Fix2 with a non-concrete type, but I'm not sure.
 function Base.findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    mem::MemoryView{UInt8},
-    start::Integer,
-)
-    _findnext(mem, p.x, start)
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        mem::MemoryView{UInt8},
+        start::Integer,
+    )
+    return _findnext(mem, p.x, start)
 end
 
 function Base.findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
-    mem::MemoryView{Int8},
-    start::Integer,
-)
-    _findnext(mem, p.x, start)
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+        mem::MemoryView{Int8},
+        start::Integer,
+    )
+    return _findnext(mem, p.x, start)
 end
 
 function Base.findnext(
-    ::typeof(iszero),
-    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
-    i::Integer,
-)
-    _findnext(mem, zero(eltype(mem)), i)
+        ::typeof(iszero),
+        mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+        i::Integer,
+    )
+    return _findnext(mem, zero(eltype(mem)), i)
 end
 
 Base.@propagate_inbounds function _findnext(
-    mem::MemoryView{T},
-    byte::T,
-    start::Integer,
-) where {T <: Union{UInt8, Int8}}
+        mem::MemoryView{T},
+        byte::T,
+        start::Integer,
+    ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
     @boundscheck(start < 1 && throw(BoundsError(mem, start)))
     start > length(mem) && return nothing
     im = @inbounds truncate_start_nonempty(ImmutableMemoryView(mem), start)
     v_ind = @something memchr(im, byte) return nothing
-    v_ind + start - 1
+    return v_ind + start - 1
 end
 
 function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
@@ -215,7 +215,7 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
             length(mem)::Csize_t,
         )::Ptr{Cvoid}
     end
-    p == C_NULL ? nothing : (p - ptr) % Int + 1
+    return p == C_NULL ? nothing : (p - ptr) % Int + 1
 end
 
 function Base.findprev(p::Function, mem::MemoryView, start::Integer)
@@ -225,43 +225,43 @@ function Base.findprev(p::Function, mem::MemoryView, start::Integer)
         p(mem[i]) && return i
         i -= 1
     end
-    nothing
+    return nothing
 end
 
 function Base.findprev(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    mem::MemoryView{UInt8},
-    start::Integer,
-)
-    _findprev(mem, p.x, start)
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        mem::MemoryView{UInt8},
+        start::Integer,
+    )
+    return _findprev(mem, p.x, start)
 end
 
 function Base.findprev(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
-    mem::MemoryView{Int8},
-    start::Integer,
-)
-    _findprev(mem, p.x, start)
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+        mem::MemoryView{Int8},
+        start::Integer,
+    )
+    return _findprev(mem, p.x, start)
 end
 
 function Base.findprev(
-    ::typeof(iszero),
-    mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
-    i::Integer,
-)
-    _findprev(mem, zero(eltype(mem)), i)
+        ::typeof(iszero),
+        mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+        i::Integer,
+    )
+    return _findprev(mem, zero(eltype(mem)), i)
 end
 
 Base.@propagate_inbounds function _findprev(
-    mem::MemoryView{T},
-    byte::T,
-    start::Integer,
-) where {T <: Union{UInt8, Int8}}
+        mem::MemoryView{T},
+        byte::T,
+        start::Integer,
+    ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
     @boundscheck (start > length(mem) && throw(BoundsError(mem, start)))
     start < 1 && return nothing
     im = @inbounds truncate(ImmutableMemoryView(mem), start)
-    memrchr(im, byte)
+    return memrchr(im, byte)
 end
 
 function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
@@ -274,7 +274,7 @@ function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, U
             length(mem)::Csize_t,
         )::Ptr{Cvoid}
     end
-    p == C_NULL ? nothing : (p - ptr) % Int + 1
+    return p == C_NULL ? nothing : (p - ptr) % Int + 1
 end
 
 const BitsTypes =
@@ -297,7 +297,7 @@ function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
         bptr = Ptr{Nothing}(pointer(b))
         y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, length(a)::Int)::Cint
     end
-    iszero(y)
+    return iszero(y)
 end
 
 function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
@@ -314,7 +314,7 @@ function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
     else
         Cint(0)
     end
-    iszero(y) ? sign(length(a) - length(b)) : Int(y)
+    return iszero(y) ? sign(length(a) - length(b)) : Int(y)
 end
 
 function Base.reverse!(mem::MutableMemoryView)
@@ -325,7 +325,7 @@ function Base.reverse!(mem::MutableMemoryView)
         start += 1
         stop -= 1
     end
-    mem
+    return mem
 end
 
 function Base.reverse(mem::MemoryView)
@@ -347,14 +347,14 @@ struct ReverseMemoryView{T}
 end
 
 function Iterators.reverse(mem::MemoryView{T}) where {T}
-    ReverseMemoryView{T}(ImmutableMemoryView(mem))
+    return ReverseMemoryView{T}(ImmutableMemoryView(mem))
 end
 Iterators.reverse(x::ReverseMemoryView) = x.mem
 
 Base.length(x::ReverseMemoryView) = length(x.mem)
 Base.eltype(::Type{ReverseMemoryView{T}}) where {T} = T
 
-function Base.iterate(x::ReverseMemoryView, state=length(x))
+function Base.iterate(x::ReverseMemoryView, state = length(x))
     iszero(state) && return nothing
-    (@inbounds(x.mem[state]), state - 1)
+    return (@inbounds(x.mem[state]), state - 1)
 end

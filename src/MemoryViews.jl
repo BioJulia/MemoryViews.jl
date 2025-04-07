@@ -81,7 +81,7 @@ struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     function MemoryView{T, M}(::Unsafe, ref::MemoryRef{T}, len::Int) where {T, M}
         (M === Mutable || M === Immutable) ||
             error("Parameter M must be Mutable or Immutable")
-        new{T, M}(ref, len)
+        return new{T, M}(ref, len)
     end
 end
 
@@ -91,7 +91,7 @@ const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 # Mutable mem views can turn into immutable ones, but not vice versa
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
 function ImmutableMemoryView(x::MutableMemoryView{T}) where {T}
-    ImmutableMemoryView{T}(unsafe, x.ref, x.len)
+    return ImmutableMemoryView{T}(unsafe, x.ref, x.len)
 end
 ImmutableMemoryView(x::ImmutableMemoryView) = x
 
@@ -103,19 +103,19 @@ Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
 function MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T}
-    MutableMemoryView{T}(unsafe, x.ref, x.len)
+    return MutableMemoryView{T}(unsafe, x.ref, x.len)
 end
 
 # Constructors that allows users to specify eltype explicitly, e.g.
 # ImmutableMemoryView{UInt8}([0x01])
 # With mutability specified
 function MemoryView{T, M}(x) where {T, M}
-    (MemoryView{X, M} where {X})(x)::MemoryView{T, M}
+    return (MemoryView{X, M} where {X})(x)::MemoryView{T, M}
 end
 
 # With mutability unspecified
 function MemoryView{T}(x) where {T}
-    MemoryView(x)::MemoryView{T}
+    return MemoryView(x)::MemoryView{T}
 end
 
 """
@@ -157,7 +157,7 @@ See: [`MemoryKind`](@ref)
 struct IsMemory{T <: MemoryView} <: MemoryKind
     function IsMemory{T}() where {T}
         isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
-        new{T}()
+        return new{T}()
     end
 end
 IsMemory(T::Type{<:MemoryView}) = IsMemory{T}()
