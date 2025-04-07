@@ -67,7 +67,8 @@ Base.mightalias(::MemoryView, ::MemoryView) = false
 
 function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
     (isempty(a) | isempty(b)) && return false
-    parent(a) === parent(b) || return false
+    # We can't compare the underlying Memory with === to add a fast path here,
+    # because users can create aliasing, but distinct Memory using unsafe_wrap.
     (p1, p2) = (pointer(a), pointer(b))
     elz = Base.elsize(a)
     return if p1 < p2
