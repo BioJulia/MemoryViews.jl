@@ -133,7 +133,7 @@ Base.isvalid(s::CharString, i::Integer) = in(i, 1:ncodeunits(s))
 CharString(s::String) = CharString(collect(s))
 
 function Base.nextind(s::CharString, i::Int, n::Int)
-    if iszero(n)
+    return if iszero(n)
         if !(iszero(i) || in(i, eachindex(s.x)))
             throw(BoundsError(s, i))
         else
@@ -144,21 +144,21 @@ function Base.nextind(s::CharString, i::Int, n::Int)
     end
 end
 
-function Base.iterate(s::CharString, i::Int=1)
-    i > ncodeunits(s) ? nothing : (s.x[i], i + 1)
+function Base.iterate(s::CharString, i::Int = 1)
+    return i > ncodeunits(s) ? nothing : (s.x[i], i + 1)
 end
 
-MemoryView(s::CharString) = MemoryView(s.x)
+MemoryViews.MemoryView(s::CharString) = MemoryView(s.x)
 
 @testset "Substrings" begin
     for (s, i) in [
-        ("æøåac", 1:5),
-        ("æøåac", 2:4),
-        ("æøåac", 4:3),
-        ("æøåac", 1:1),
-        ("", 1:0),
-        ("儒家孟子", 2:4),
-    ]
+            ("æøåac", 1:5),
+            ("æøåac", 2:4),
+            ("æøåac", 4:3),
+            ("æøåac", 1:1),
+            ("", 1:0),
+            ("儒家孟子", 2:4),
+        ]
         ss = SubString(CharString(s), i)
         v1 = MemoryView(ss)
         @test v1 isa ImmutableMemoryView{Char}
@@ -167,13 +167,13 @@ MemoryView(s::CharString) = MemoryView(s.x)
     end
 
     for (s, i) in [
-        ("æøåac", 1:8),
-        ("æøåac", 3:7),
-        ("æøåac", 5:4),
-        ("æøåac", 1:1),
-        ("", 1:0),
-        ("儒家孟子", 4:10),
-    ]
+            ("æøåac", 1:8),
+            ("æøåac", 3:7),
+            ("æøåac", 5:4),
+            ("æøåac", 1:1),
+            ("", 1:0),
+            ("儒家孟子", 4:10),
+        ]
         ss = SubString(s, i)
         @test MemoryView(ss) isa ImmutableMemoryView{UInt8}
         @test MemoryView(ss) == MemoryView(String(ss))
@@ -206,15 +206,15 @@ end
         mem = MemoryView(s)
 
         for i in Any[
-            2:6,
-            Int32(4):Int32(9),
-            0x05:0x0a,
-            Base.OneTo(11),
-            :,
-            5:4,
-            100:99,
-            -500:-501,
-        ]
+                2:6,
+                Int32(4):Int32(9),
+                0x05:0x0a,
+                Base.OneTo(11),
+                :,
+                5:4,
+                100:99,
+                -500:-501,
+            ]
             @test mem[i] == cu[i]
         end
 
@@ -380,11 +380,11 @@ end
 
     @testset "Reverse and reverse!" begin
         for v in [
-            ["a", "abc", "a", "c", "kij"],
-            [0x09, 0x05, 0x02, 0x01],
-            [1.0f0, -10.0f5, Inf32, Inf32],
-            [nothing, nothing, nothing],
-        ]
+                ["a", "abc", "a", "c", "kij"],
+                [0x09, 0x05, 0x02, 0x01],
+                [1.0f0, -10.0f5, Inf32, Inf32],
+                [nothing, nothing, nothing],
+            ]
             @test reverse!(MemoryView(copy(v))) == MemoryView(reverse(v))
             mem = MemoryView(v)
             rev = reverse(mem)
@@ -401,13 +401,13 @@ end
 
     @testset "Cmp" begin
         for (a, b, y) in [
-            ([0x01], [0x00], 1),
-            (UInt8[], UInt8[], 0),
-            ([0x02, 0x03], [0x02, 0x03, 0x01], -1),
-            ([0x02, 0x03, 0x01], [0x02, 0x03], 1),
-            ([0x9f], [0x9f], 0),
-            ([0x01, 0x03, 0x02], [0x01, 0x04], -1),
-        ]
+                ([0x01], [0x00], 1),
+                (UInt8[], UInt8[], 0),
+                ([0x02, 0x03], [0x02, 0x03, 0x01], -1),
+                ([0x02, 0x03, 0x01], [0x02, 0x03], 1),
+                ([0x9f], [0x9f], 0),
+                ([0x01, 0x03, 0x02], [0x01, 0x04], -1),
+            ]
             @test cmp(MemoryView(a), MemoryView(b)) == y
         end
     end
@@ -422,10 +422,10 @@ end
 
     @testset "Split first and last and at" begin
         for mem in Any[
-            MemoryView(b"abcde"),
-            MemoryView(Any["abc", "def", "ghi"]),
-            ImmutableMemoryView(rand(2, 2)),
-        ]
+                MemoryView(b"abcde"),
+                MemoryView(Any["abc", "def", "ghi"]),
+                ImmutableMemoryView(rand(2, 2)),
+            ]
             @test split_first(mem) == (mem[1], mem[2:end])
             @test split_last(mem) == (mem[end], mem[1:(end - 1)])
             @test split_at(mem, 1) == (mem[1:0], mem[1:end])
@@ -580,16 +580,16 @@ end
 @testset "MemoryKind" begin
     @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
     @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
-          IsMemory(ImmutableMemoryView{UInt8})
+        IsMemory(ImmutableMemoryView{UInt8})
     @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
-          IsMemory(MutableMemoryView{String})
+        IsMemory(MutableMemoryView{String})
     @test MemoryKind(Matrix{Nothing}) == IsMemory(MutableMemoryView{Nothing})
     @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
     @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
 
     @test inner(IsMemory(MutableMemoryView{Int32})) == MutableMemoryView{Int32}
     @test inner(IsMemory(ImmutableMemoryView{Tuple{String, Int}})) ==
-          ImmutableMemoryView{Tuple{String, Int}}
+        ImmutableMemoryView{Tuple{String, Int}}
 
     @test MemoryKind(SubString{String}) == NotMemory()
     @test MemoryKind(String) == NotMemory()

@@ -4,7 +4,7 @@ my_findfirst(p, haystack) = my_findnext(p, haystack, firstindex(haystack))
 # When the predicate is looking for a single byte, we dispatch to see
 # if the haystack is a chunk of memory. In that case, we can use memchr
 function my_findnext(p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8}, haystack, k)
-    _my_findnext(MemoryKind(typeof(haystack)), p, haystack, k)
+    return _my_findnext(MemoryKind(typeof(haystack)), p, haystack, k)
 end
 
 # The generic: Use fallback
@@ -17,17 +17,17 @@ function _my_findnext(p, haystack, i)
         p(haystack[i]) && return i
         i = nextind(haystack, i)
     end
-    nothing
+    return nothing
 end
 
 # String implementation - strings are not IsMemory, but
 # we can still use the MemoryViews interface to implement
 # char searching.
 function my_findnext(
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, <:AbstractChar},
-    s::Union{String, SubString{String}},
-    i::Int,
-)
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, <:AbstractChar},
+        s::Union{String, SubString{String}},
+        i::Int,
+    )
     i < 1 && throw(BoundsError(s, i))
     c = Char(p.x)::Char
     byte = (reinterpret(UInt32, c) >> 24) % UInt8
@@ -45,25 +45,25 @@ function my_findnext(
         isvalid(s, i) && s[i] == c && return i
         i += 1
     end
-    nothing
+    return nothing
 end
 
 # Fallback - if the haystack is not IsMemory of bytes, we use the fallback definiion
 function _my_findnext(::MemoryKind, p, haystack, i)
-    _my_findnext(p, haystack, i)
+    return _my_findnext(p, haystack, i)
 end
 
 # If it is bytes, we can convert the haystack to an ImmutableMemoryView,
 # and use the memory view's optimised method
 function _my_findnext(
-    ::IsMemory{<:MemoryView{UInt8}},
-    p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-    haystack,
-    i,
-)
+        ::IsMemory{<:MemoryView{UInt8}},
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        haystack,
+        i,
+    )
     ind = Int(i)::Int - Int(firstindex(haystack))::Int + 1
     ind < 1 && throw(BoundsError(haystack, i))
-    find_next_byte(p.x, ImmutableMemoryView(haystack), ind)
+    return find_next_byte(p.x, ImmutableMemoryView(haystack), ind)
 end
 
 # Wrapper around memchr.
@@ -76,7 +76,7 @@ function find_next_byte(needle::UInt8, haystack::ImmutableMemoryView{UInt8}, i::
         ptr = pointer(haystack, i)
         p = @ccall memchr(ptr::Ptr{UInt8}, needle::UInt8, ulen::UInt)::Ptr{Nothing}
     end
-    p == C_NULL ? nothing : (p - ptr + i) % Int
+    return p == C_NULL ? nothing : (p - ptr + i) % Int
 end
 
 using Test
@@ -95,5 +95,5 @@ using Test
     # Note that even quite complex nested types will correctly dispatch to
     # the memchr implementation with little overhead
     @test my_findfirst(isequal(0x65), view(codeunits(view("abcdefg", Base.OneTo(5))), :)) ==
-          5
+        5
 end
