@@ -625,11 +625,13 @@ end
             FixedSizeArray(zeros(Float32, 4, 3)),
             FixedSizeArray(fill("abc", 4, 3)),
             FixedSizeArray{Int16}(undef, 2, 2),
+            FixedSizeArray(b"Hello, world!"),
         ]
         mem = MemoryView(A)
         @test length(mem) == length(A)
         @test mem == vec(A)
         @test typeof(mem) == MutableMemoryView{eltype(A)}
+        @test MemoryKind(typeof(A)) == IsMemory(MutableMemoryView{eltype(A)})
     end
 end
 
