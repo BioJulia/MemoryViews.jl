@@ -55,6 +55,12 @@ foo(x) = foo(MemoryKind(typeof(x)), x)
 foo(x::AbstractString) = foo(codeunits(x))
 ```
 
+## API differences from `Memory`
+Given a `MemoryView` `v` and a `Memory` `mem`:
+
+* `v[1:3]` creates a view into the same memory, instead of allocating new backing memory.
+* `copyto!` and `unsafe_copyto!` do not take starting indices. Instead, simply create new views starting at the desired indices.
+
 ## Limitations
 * Many optimised fast methods for more established types like `Vector` are missing for `MemoryView`.
   These are added over time. Please make an issue or a PR as you encounter missing methods.

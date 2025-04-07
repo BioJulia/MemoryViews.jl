@@ -85,10 +85,12 @@ end
 """
     split_unaligned(v::T, ::Val{A}) -> Tuple{T, T} where {T <: MemoryView}
 
-Split memory view `v` into two views `a` and `b`, `a` is the smallest prefix of `v`
-that gaurantees `b` is aligned to the integer value `A`.
+Split memory view `v` into two views `a` and `b`, where `a` is the smallest prefix of `v`
+that guarantees the starting memory address of `b` is is aligned to the integer value `A`.
 `A` must be a normal bit-integer, and a power of two in the range 1:64.
+
 If `v` is empty or already aligned, `a` will be empty.
+If no elements of `v` is aligned, `b` will be empty and `a` will be equal to `v`.
 The element type of `v` must be a bitstype.
 
 
