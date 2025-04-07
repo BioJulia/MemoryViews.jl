@@ -4,13 +4,13 @@ MemoryView(v::MemoryView) = v
 MemoryKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryView(A::Memory{T}) where {T} = MutableMemoryView{T}(unsafe, memoryref(A), length(A))
-MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, A.ref, length(A))
+MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, Base.cconvert(Ptr, A), length(A))
 
 # Strings
 MemoryView(s::String) = ImmutableMemoryView(unsafe_wrap(Memory{UInt8}, s))
 function MemoryView(s::SubString)
     v = ImmutableMemoryView(parent(s))
-    return @inbounds v[(s.offset + 1):(s.offset + s.ncodeunits)]
+    return v[(s.offset + 1):(s.offset + ncodeunits(s))]
 end
 
 # Special implementation for SubString{String}, which we can guarantee never
@@ -19,7 +19,7 @@ function MemoryView(s::SubString{String})
     memview = MemoryView(parent(s))
     isempty(memview) && return memview
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
-    return ImmutableMemoryView{UInt8}(unsafe, newref, s.ncodeunits)
+    return ImmutableMemoryView{UInt8}(unsafe, newref, ncodeunits(s))
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
@@ -33,15 +33,22 @@ end
 MemoryView(s::Base.CodeUnits) = MemoryView(s.s)
 
 # SubArrays
-# TODO: Identical to FastContiguousSubArray in Base
+# This is quite tricky, because the indexing can be:
+# * <: AbstractUnitRange
+# * StepRange, with step == 1
+# * Integer (zero-dimensional along one axis)
+
+# It can also be multidimensional, but if so, all axes but the last one
+# must span the entire dimension.
+# And if so, we would need to compute the linear indices.
+
+# For now, I've only accepted 1-D views.
 const ContiguousSubArray = SubArray{
-    T,
-    N,
-    P,
-    <:Union{Tuple{Vararg{Real}}, Tuple{AbstractUnitRange, Vararg{Any}}},
-} where {T, N, P}
+    T, N, P, I, true,
+} where {T, N, P, I <: Union{Tuple{Integer}, Tuple{AbstractUnitRange}}}
 
 MemoryKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemoryKind(P)
+
 function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))
