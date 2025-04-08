@@ -4,6 +4,18 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.4.0
+### Breaking changes
+* Removed the `Unsafe` trait type:
+    - Instead of `MutableMemoryView(::Unsafe, ::MemoryView)`, use
+      `unsafe_wrap(MutableMemoryView, ::MemoryView)`
+    - Using the inner constructor `MemoryView{T, M}(::Unsafe, ::MemoryRef{T}, ::Int)`
+      was never documented API and is now removed.
+
+* `MemoryView(::SubArray)` now accepts fewer subarray types. However, it is unlikely
+  that any instance that is now no longer accepted worked previously, so it is
+  unlikely to be breaking in practice. 
+
 ## 0.3.5
 * Add method `MemoryKind{::Type{<:MemoryView}}`
 * Add package extension for LibDeflate.jl
