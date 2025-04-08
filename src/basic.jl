@@ -45,10 +45,10 @@ else
     end
 end
 
-function Base.copy(x::MemoryView)
+function Base.copy(x::MemoryView{T, M}) where {T, M}
     isempty(x) && return x
     newmem = @inbounds x.ref.mem[only(parentindices(x))]
-    return typeof(x)(unsafe, memoryref(newmem), x.len)
+    return unsafe_new_memoryview(M, memoryref(newmem), x.len)
 end
 
 function Base.checkbounds(v::MemoryView, is...)
@@ -70,12 +70,13 @@ function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {
 end
 
 function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
-    return MemoryView{T2, M}(unsafe, memoryref(Memory{T2}()), 0)
+    return unsafe_new_memoryview(M, memoryref(Memory{T2}()), 0)
 end
 
-Base.empty(T::Type{<:MemoryView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
+Base.empty(::Type{<:MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
+Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
 Base.strides(::MemoryView) = (1,)
@@ -109,11 +110,11 @@ function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryView)
     return Base.mightalias(ImmutableMemoryView(a), b)
 end
 
-function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
+function Base.getindex(v::MemoryView{T, M}, idx::AbstractUnitRange) where {T, M}
     # This branch is necessary, because the memoryref can't point out of bounds.
     # So if the user gives an empty slice that is out of bounds, the boundscheck
     # may pass, but the memoryref construction will be OOB.
-    isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
+    isempty(idx) && return unsafe_new_memoryview(M, memoryref(v.ref.mem), 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, Int(first(idx))::Int)
     return typeof(v)(unsafe, newref, Int(length(idx))::Int)
@@ -138,35 +139,35 @@ Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[id
 
 # Efficient way to get `mem[1:include_last]`.
 # include_last must be in 0:length(mem)
-function truncate(mem::MemoryView, include_last::Integer)
+function truncate(mem::MemoryView{T, M}, include_last::Integer) where {T, M}
     lst = Int(include_last)::Int
     @boundscheck if (lst % UInt) > length(mem) % UInt
         throw_lightboundserror(mem, lst)
     end
-    return typeof(mem)(unsafe, mem.ref, lst)
+    return unsafe_new_memoryview(M, mem.ref, lst)
 end
 
 # Efficient way to get `mem[from:end]`.
 # From must be in 1:length(mem).
-function truncate_start_nonempty(mem::MemoryView, from::Integer)
+function truncate_start_nonempty(mem::MemoryView{T, M}, from::Integer) where {T, M}
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) ≥ length(mem) % UInt
         throw_lightboundserror(mem, frm)
     end
     newref = @inbounds memoryref(mem.ref, frm)
-    return typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+    return unsafe_new_memoryview(M, newref, length(mem) - frm + 1)
 end
 
 # Efficient way to get `mem[from:end]`.
 # From must be in 1:length(mem)+1.
-function truncate_start(mem::MemoryView, from::Integer)
+function truncate_start(mem::MemoryView{T, M}, from::Integer) where {T, M}
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) > length(mem) % UInt
         throw_lightboundserror(mem, frm)
     end
     frm == 1 && return mem
     newref = @inbounds memoryref(mem.ref, frm - (from == length(mem) + 1))
-    return typeof(mem)(unsafe, newref, length(mem) - frm + 1)
+    return unsafe_new_memoryview(M, newref, length(mem) - frm + 1)
 end
 
 function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}

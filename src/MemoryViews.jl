@@ -15,17 +15,6 @@ public Mutable, Immutable, DelimitedIterator
 using LightBoundsErrors: checkbounds_lightboundserror, throw_lightboundserror
 
 """
-    Unsafe
-
-Trait object used to dispatch to unsafe methods.
-The `MemoryViews.unsafe` instance is the singleton instance of this type.
-"""
-struct Unsafe end
-
-"Singleton instance of the trait type `Unsafe`"
-const unsafe = Unsafe()
-
-"""
 Trait struct, only used in the mutability parameter of `MemoryView`
 """
 struct Mutable end
@@ -89,7 +78,7 @@ struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     ref::MemoryRef{T}
     len::Int
 
-    function MemoryView{T, M}(::Unsafe, ref::MemoryRef{T}, len::Int) where {T, M}
+    global function unsafe_new_memoryview(::Type{M}, ref::MemoryRef{T}, len::Int) where {M, T}
         (M === Mutable || M === Immutable) ||
             error("Parameter M must be Mutable or Immutable")
         return new{T, M}(ref, len)
@@ -132,20 +121,19 @@ _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
 # Mutable mem views can turn into immutable ones, but not vice versa
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
-function ImmutableMemoryView(x::MutableMemoryView{T}) where {T}
-    return ImmutableMemoryView{T}(unsafe, x.ref, x.len)
+function ImmutableMemoryView(x::MemoryView)
+    return unsafe_new_memoryview(Immutable, x.ref, x.len)
 end
-ImmutableMemoryView(x::ImmutableMemoryView) = x
 
 """
-    MutableMemoryView(::Unsafe, x::MemoryView)
+    unsafe_wrap(MutableMemoryView, x::MemoryView)
 
 Convert a memory view into a mutable memory view.
 Note that it may cause undefined behaviour, if supposedly immutable data
 is observed to be mutated.
 """
-function MutableMemoryView(::Unsafe, x::MemoryView{T}) where {T}
-    return MutableMemoryView{T}(unsafe, x.ref, x.len)
+function Base.unsafe_wrap(::Type{MutableMemoryView}, x::MemoryView{T}) where {T}
+    return unsafe_new_memoryview(Mutable, x.ref, x.len)
 end
 
 # Constructors that allows users to specify eltype explicitly, e.g.

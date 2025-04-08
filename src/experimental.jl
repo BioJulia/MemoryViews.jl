@@ -107,7 +107,7 @@ julia> split_unaligned(MemoryView(collect(0x01:0x20))[6:13], Val(8))
 (UInt8[0x06, 0x07, 0x08], UInt8[0x09, 0x0a, 0x0b, 0x0c, 0x0d])
 ```
 """
-function split_unaligned(v::MemoryView, ::Val{A}) where {A}
+function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
     isbitstype(eltype(v)) || error("Alignment can only be computed for views of bitstypes")
     A isa Bits || error("Invalid alignment")
     in(A, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
@@ -116,7 +116,7 @@ function split_unaligned(v::MemoryView, ::Val{A}) where {A}
     sz = Base.elsize(v)
     # Early return here to avoid division by zero: Size sz is statically known,
     # this will be compiled away
-    iszero(sz) && return (typeof(v)(unsafe, v.ref, 0), v)
+    iszero(sz) && return (unsafe_new_memoryview(M, v.ref, 0), v)
     unaligned_bytes = ((alignment - (UInt(pointer(v)) & mask)) & mask)
     n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
     return @inbounds split_at(v, n_elements + 1)
