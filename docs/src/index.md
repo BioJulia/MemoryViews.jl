@@ -17,13 +17,13 @@ The `MemoryView` type is a useful low-level building block for code that operate
 The `MemoryView` type has the following layout:
 
 ```julia
-struct MemoryView{T, M} <: AbstractVector{T}
+struct MemoryView{T, M} <: DenseVector{T}
     ref::MemoryRef{T},
     len::Int
 end
 ```
 
-The `M` parameter is either `Mutable` or `Immutable`, which are unexported types defined in this package.
+The `M` parameter is either `Mutable` or `Immutable`, which are unexported but public types defined in this package.
 MemoryViews also provide the following aliases for convenience:
 
 ```julia
