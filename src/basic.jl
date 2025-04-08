@@ -6,10 +6,9 @@ function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     return v
 end
 
-# In v1.12, this `parent` method was added. Before 1.12, we load this undocumented
-# field. This is safe-ish because it's very unlikely changes to the layout of
-# `MemoryRef` will be backported
-if VERSION < v"1.12"
+# The parent method for memoryref was added in 1.12. In versions before that,
+# it can be accessed by reaching into internals.
+@static if VERSION < v"1.12"
     Base.parent(v::MemoryView) = v.ref.mem
 else
     Base.parent(v::MemoryView) = parent(v.ref)
