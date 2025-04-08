@@ -6,7 +6,14 @@ function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     return v
 end
 
-Base.parent(v::MemoryView) = parent(v.ref)
+# The parent method for memoryref was added in 1.12. In versions before that,
+# it can be accessed by reaching into internals.
+@static if VERSION < v"1.12"
+    Base.parent(v::MemoryView) = v.ref.mem
+else
+    Base.parent(v::MemoryView) = parent(v.ref)
+end
+
 Base.size(v::MemoryView) = (v.len,)
 Base.IndexStyle(::Type{<:MemoryView}) = Base.IndexLinear()
 
