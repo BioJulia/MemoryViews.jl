@@ -3,6 +3,8 @@ module MemoryViews
 export MemoryView,
     ImmutableMemoryView, MutableMemoryView, MemoryKind, IsMemory, NotMemory, inner
 
+public Mutable, Immutable
+
 """
     Unsafe
 

@@ -39,15 +39,11 @@ MemoryKind could be replaced with a function that returned `nothing`, or the cor
 MemoryView type directly, but it's nicer to dispatch on `::MemoryKind` than on `::Union{Nothing, Type{<:MemoryView}}`.
 
 ## Limitations
-* Currently, `MemoryView` does not make use of `Core.GenericMemory`'s additional parameters, such as
-  atomicity or address space.
-  This may easily be added with a `GenericMemoryView` type, similar to `Memory` / `GenericMemory`.
+* Many optimised fast methods for more established types like `Vector` are missing for `MemoryView`.
+  These are added over time. Please make an issue or a PR as you encounter missing methods.
 
-* I can't figure out how to support reinterpreted arrays.
-  Any way I can think of doing so will significantly complicate `MemoryView`, which takes away some of
-  the appeal of this type's simplicity.
-  It's possible that reinterpreted arrays are so outside Julia's ordinary memory management
-  that this simply can't be done.
+* Currently, `MemoryView` does not make use of `Core.GenericMemory`'s additional parameters, such as atomicity or address space.
+  This may easily be added with a `GenericMemoryView` type, similar to `Memory` / `GenericMemory`.
 
 * Currently, `String`s are not backed by `Memory` in Julia. Therefore, creating a `MemoryView` of a string
   requires heap-allocating a new `Memory` pointing to the existing memory of the string.
@@ -67,7 +63,7 @@ less nicely with the Julia runtime. Also, the existing `GenericMemoryRef` is ess
 #### Advantages
 * Pointer-based memviews are cheaper to construct, and do not allocate for strings, unlike `Memory`.
   Perhaps in the future, strings too will be backed by `Memory`.
-* Their interaction with the GC is simpler (as there is no interaction)
+* Pointer-based memory views allows interoperability with non-Julia memory like C owned structs easier.
 
 #### Disadvantages
 * While some low-level methods using `MemoryView` will just forward to calling external libraries where
