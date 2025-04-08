@@ -3,8 +3,8 @@ MemoryView(v::MemoryView) = v
 # Array and Memory
 MemoryKind(::Type{<:Array{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
-MemoryView(A::Memory{T}) where {T} = MutableMemoryView{T}(unsafe, memoryref(A), length(A))
-MemoryView(A::Array{T}) where {T} = MutableMemoryView{T}(unsafe, Base.cconvert(Ptr, A), length(A))
+MemoryView(A::Memory{T}) where {T} = unsafe_new_memoryview(Mutable, memoryref(A), length(A))
+MemoryView(A::Array{T}) where {T} = unsafe_new_memoryview(Mutable, Base.cconvert(Ptr, A), length(A))
 
 # Strings
 MemoryView(s::String) = ImmutableMemoryView(unsafe_wrap(Memory{UInt8}, s))
@@ -19,7 +19,7 @@ function MemoryView(s::SubString{String})
     memview = MemoryView(parent(s))
     isempty(memview) && return memview
     newref = @inbounds memoryref(memview.ref, s.offset + 1)
-    return ImmutableMemoryView{UInt8}(unsafe, newref, ncodeunits(s))
+    return unsafe_new_memoryview(Immutable, newref, ncodeunits(s))
 end
 
 # CodeUnits are semantically IsMemory, but only if the underlying string
