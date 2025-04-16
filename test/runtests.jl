@@ -1,4 +1,5 @@
 using Test
+using FixedSizeArrays
 using MemoryViews
 using Aqua
 using StringViews: StringView
@@ -616,6 +617,22 @@ end
     s = StringView(view(0x61:0x65, 2:4))
     @test_throws MethodError MemoryView(s)
     @test MemoryKind(typeof(s)) == NotMemory()
+end
+
+@testset "FixedSizeArrays" begin
+    for A in [
+            FixedSizeArray([1, 2, 3]),
+            FixedSizeArray(zeros(Float32, 4, 3)),
+            FixedSizeArray(fill("abc", 4, 3)),
+            FixedSizeArray{Int16}(undef, 2, 2),
+            FixedSizeArray(b"Hello, world!"),
+        ]
+        mem = MemoryView(A)
+        @test length(mem) == length(A)
+        @test mem == vec(A)
+        @test typeof(mem) == MutableMemoryView{eltype(A)}
+        @test MemoryKind(typeof(A)) == IsMemory(MutableMemoryView{eltype(A)})
+    end
 end
 
 Aqua.test_all(MemoryViews)
