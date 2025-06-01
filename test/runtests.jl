@@ -224,6 +224,21 @@ end
         mem[3] = 10
         # No copying
         @test mem2 == [10, 1, 8]
+
+        # Base.OneTo
+        mem = MemoryView(b"abcdefg")
+        v = mem[Base.OneTo(3)]
+        @test v == b"abc"
+        v = mem[Base.OneTo(0)]
+        @test isempty(v)
+        v = mem[Base.OneTo(7)]
+        @test v === mem
+        mem = MemoryView("")
+        v = mem[Base.OneTo(0)]
+        @test mem === v
+
+        @test_throws BoundsError mem[Base.OneTo(8)]
+        @test_throws BoundsError mem[Base.OneTo(typemax(Int))]
     end
 
     @testset "Views of memviews" begin

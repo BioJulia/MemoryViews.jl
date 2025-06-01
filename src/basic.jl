@@ -101,6 +101,13 @@ function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
     return typeof(v)(unsafe, newref, length(idx))
 end
 
+# Faster method, because we don't need to create a new memoryref, and also don't
+# need to handle the empty case.
+function Base.getindex(v::MemoryView, idx::Base.OneTo)
+    @boundscheck checkbounds(v, idx)
+    return typeof(v)(unsafe, v.ref, last(idx))
+end
+
 Base.getindex(v::MemoryView, ::Colon) = v
 Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
 
