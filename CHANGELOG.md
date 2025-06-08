@@ -4,6 +4,17 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.3.2
+* Support FixedSizeArrays
+* Various bugfixes and optimisations
+* Format with Runic
+
+
+## 0.3.1
+* Fix a bug in parentindices, where it returned the wrong type
+* Make `similar` return a mutable array always
+* Various bugfixes and optimisations
+
 ## 0.3.0
 ### Breaking changes
 * Change the bounds checking behaviour of the find* functions to match those of
