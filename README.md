@@ -34,7 +34,7 @@ copyto!(mem2, mem1)
 
 # Use the memory views as ordinary vectors
 fst = mem1[1]
-reverse!(mem1) # ... etc
+reverse!(mem2) # ... etc
 ```
 
 ### Dispatching to MemoryView
@@ -56,9 +56,7 @@ foo(x::AbstractString) = foo(codeunits(x))
 ```
 
 ## API differences from `Memory`
-Given a `MemoryView` `v` and a `Memory` `mem`:
-
-* `v[1:3]` creates a view into the same memory, instead of allocating new backing memory.
+* For `v::MemoryView`, `v[1:3]` creates a view into the same memory, instead of allocating new backing memory.
 * `copyto!` and `unsafe_copyto!` do not take starting indices. Instead, simply create new views starting at the desired indices.
 
 ## Limitations
