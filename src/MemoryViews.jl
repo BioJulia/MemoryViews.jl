@@ -67,7 +67,7 @@ automatically work, even if `MemoryView(x)` returns a mutable view.
 
 It is not possible to mutate memory though an `ImmutableMemoryView`, but the existence
 of the view does not protect the same memory from being mutated though another
-variable.
+variable, or through explicitly unsafe functions.
 
 The precise memory layout of the data in a `MemoryView` follows that of `Memory`.
 This includes the fact that some elements in the array, such as  `String`s,
@@ -130,7 +130,8 @@ else `NotMemory()`. The default implementation `MemoryKind(::Type)` returns `Not
 If `MemoryKind(T) isa IsMemory{M}`, the following must hold:
 1. `M` is a concrete subtype of `MemoryView`. To obtain `M` from an `m::IsMemory{M}`,
     use `inner(m)`.
-2. `MemoryView(T)` is a valid instance of `M`.
+2. `MemoryView(::T)` is a valid instance of `M` (except in cases where there can be invalid
+   instances of `T` that instead errors, e.g. uninitialized instances).
 3. `MemoryView(x) == x` for all instances `x::T`
 
 Some objects can be turned into `MemoryView` without being `IsMemory`.
@@ -179,5 +180,7 @@ MemoryKind(::Type{Union{}}) = NotMemory()
 include("construction.jl")
 include("basic.jl")
 include("experimental.jl")
+include("base_arrays.jl")
+include("io.jl")
 
 end # module

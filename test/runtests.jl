@@ -593,6 +593,89 @@ end
     @test m2 == m1
 end
 
+@testset "IO" begin
+    # Empty IO
+    buf = IOBuffer()
+    v = fill(0xaa, 25)
+    @test iszero(readbytes!(buf, MemoryView(v)))
+    @test all(==(0xaa), v)
+
+    # Buffer running EOF
+    data = b"Hello, world!"
+    buf = IOBuffer(data)
+    @test readbytes!(buf, MemoryView(v)) == length(data)
+    @test v == vcat(data, fill(0xaa, 25 - length(data)))
+
+    # With nb being lower
+    data = b"Hello, world!"
+    buf = IOBuffer(data)
+    v = fill(0xaa, 25)
+    readbytes!(buf, MemoryView(v), 7)
+    @test v[1:8] == b"Hello, \xaa"
+
+    # With nb being higher than the vector length
+    data = b"Hello, world!"
+    buf = IOBuffer(data)
+    v = fill(0xaa, 8)
+    readbytes!(buf, MemoryView(v), 10)
+    @test v == b"Hello, w"
+end
+
+@testset "Base arrays" begin
+    @testset "Memory construction" begin
+        v = ImmutableMemoryView([5, 2, 1])
+        @test Memory(v) isa Memory{Int}
+        @test Memory(v) == v
+
+        @test Memory{Int}(v) isa Memory{Int}
+        @test Memory{Int}(v) == v
+        @test Memory{Int}(v) !== parent(v)
+
+        @test isempty(Memory{Int}(v[1:0]))
+    end
+
+    @testset "Vector construction" begin
+        v = ImmutableMemoryView(["abc", "def", "hi"])
+        @test Vector(v) isa Vector{String}
+        @test Vector(v) == v
+
+        @test Vector{String}(v) isa Vector{String}
+        @test Vector{String}(v) == v
+
+        @test isempty(Vector{String}(v[1:0]))
+    end
+
+    @testset "Vector/Memory copying" begin
+        v = [5, 1, 3, 6, 7, 2]
+        m = ImmutableMemoryView([6, 2, 1])
+        @test copyto!(v, m) === v
+        @test v == [6, 2, 1, 6, 7, 2]
+
+        @test copy!(v, m) === v
+        @test v == m
+
+        @test_throws MethodError copy!(Memory{Int}(undef, 2), m)
+
+        v = Memory{Int}(undef, 3)
+        @test copy!(v, m) === v
+        @test v == m
+    end
+
+    @testset "Vector append!" begin
+        m = ImmutableMemoryView([7, 2, 1])
+        v = Int[]
+        @test append!(v, m) === v
+        @test v == m
+
+        m = m[1:0]
+        append!(v, m)
+        @test v == [7, 2, 1]
+
+        @test append!(v, MemoryView([2, 1])) === v
+        @test v == [7, 2, 1, 2, 1]
+    end
+end
+
 @testset "MemoryKind" begin
     @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
     @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
@@ -650,4 +733,4 @@ end
     end
 end
 
-Aqua.test_all(MemoryViews)
+Aqua.test_all(MemoryViews; ambiguities = false)
