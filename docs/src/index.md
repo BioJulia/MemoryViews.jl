@@ -33,7 +33,8 @@ const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 
 Immutable memory views are immutable, in that they do not support `setindex!` or other
 mutating methods. The existence of an `ImmutableMemoryView` does not protect its underlying
-data from being mutated through another variable.
+data from being mutated through another variable, or though explicitly unsafe functions,
+such as using raw pointers.
 
 ## Usage
 ### Constructing memory views

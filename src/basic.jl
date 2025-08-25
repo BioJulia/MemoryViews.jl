@@ -146,7 +146,7 @@ end
 
 function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     iszero(length(src)) && return dst
-    @inbounds unsafe_copyto!(dst.ref, src.ref, length(src))
+    @inbounds unsafe_copyto!(dst.ref, src.ref, length(src) % UInt)
     return dst
 end
 
