@@ -733,4 +733,4 @@ end
     end
 end
 
-Aqua.test_all(MemoryViews)
+Aqua.test_all(MemoryViews; ambiguities = false)

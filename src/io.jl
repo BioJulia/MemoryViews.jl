@@ -1,3 +1,7 @@
+# Note: This implementation intentionally throws ambiguity errors,
+# because the fallback definition for ::IO ::AbstractArray{UInt8}
+# is a performance disaster.
+# This encourages implementors of IOs to implement a method for this.
 function Base.readbytes!(io::IO, v::MutableMemoryView{UInt8}, nb::Integer = length(v))
     nb = Int(nb)::Int
     # A view of all the bytes not yet read
