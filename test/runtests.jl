@@ -4,6 +4,8 @@ using MemoryViews
 using Aqua
 using StringViews: StringView
 
+using MemoryViews: DelimitedIterator, Mutable, Immutable
+
 MemoryViews.MemoryView(s::GenericString) = MemoryView(s.string)
 
 MUT_BACKINGS = Any[
@@ -566,6 +568,21 @@ end
         @test collect(it) == reverse(mem)
         @test Iterators.reverse(it) === ImmutableMemoryView(mem)
     end
+end
+
+@testset "split_each" begin
+    it = split_each(b"abcdba", 0x00)
+    @test eltype(it) == ImmutableMemoryView{UInt8}
+    @test it isa DelimitedIterator{UInt8, Immutable}
+    it = split_each(["abc", "def", "ghi"], "")
+    @test eltype(it) == MutableMemoryView{String}
+    @test it isa DelimitedIterator{String, Mutable}
+
+    @test collect(split_each(b"", 0x00)) == ImmutableMemoryView{UInt8}[]
+    @test collect(split_each([1, 2, 3, 3, 4, 5, 2, 3], 3)) == [[1, 2], [], [4, 5, 2], []]
+    @test collect(split_each(String[], "")) == String[]
+    @test collect(split_each([1.0, 0.0, 2.0, -0.0, 5], -0.0)) == [[1.0, 0.0, 2.0], [5.0]]
+    @test collect(split_each([Dict()], Dict())) == [[], []]
 end
 
 @testset "Equality" begin
