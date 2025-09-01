@@ -1,9 +1,15 @@
 module MemoryViews
 
 export MemoryView,
-    ImmutableMemoryView, MutableMemoryView, MemoryKind, IsMemory, NotMemory, inner
+    ImmutableMemoryView,
+    MutableMemoryView,
+    MemoryKind,
+    IsMemory,
+    NotMemory,
+    inner,
+    split_each
 
-public Mutable, Immutable
+public Mutable, Immutable, DelimitedIterator
 
 """
     Unsafe
@@ -89,6 +95,8 @@ end
 
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
+
+_get_mutability(::MemoryView{T, M}) where {T, M} = M
 
 # Mutable mem views can turn into immutable ones, but not vice versa
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
@@ -180,6 +188,7 @@ MemoryKind(::Type{Union{}}) = NotMemory()
 include("construction.jl")
 include("basic.jl")
 include("experimental.jl")
+include("delimited.jl")
 include("base_arrays.jl")
 include("io.jl")
 
