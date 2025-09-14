@@ -7,7 +7,8 @@ export MemoryView,
     IsMemory,
     NotMemory,
     inner,
-    split_each
+    split_each,
+    unsafe_from_parts
 
 public Mutable, Immutable, DelimitedIterator
 
@@ -95,6 +96,35 @@ end
 
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
+
+"""
+    unsafe_from_parts(ref::MemoryRef{T}, len::Int)::MutableMemoryView{T}
+
+Create a mutable memory view from its parts.
+
+**Safety:** Callers are responsible to ensure that:
+* `len` is not negative
+* All indices `i in 1:len` are valid for `ref` (i.e. `memoryref(ref, i)` would
+  not throw)
+* If `ref` is derived from immutable memory, the returned memory view must not
+  be mutated. The caller should immediately convert it to an immutable view.
+
+# Examples
+```jldoctest
+julia> v = [1,2,3,4];
+
+julia> ref = Base.cconvert(Ptr, v);
+
+julia> view = unsafe_from_parts(ref, 3)
+3-element MutableMemoryView{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function unsafe_from_parts(ref::MemoryRef{T}, len::Int) where {T}
+    return MemoryView{T, Mutable}(unsafe, ref, len)
+end
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 

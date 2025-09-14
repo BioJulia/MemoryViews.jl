@@ -4,6 +4,10 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.3.4
+* Add new function `unsafe_from_parts` to construct a memory view from a
+  `MemoryRef`.
+
 ## 0.3.3
 ### New features
 * Add a new `split_each` function, which iterates over memory views delimited
