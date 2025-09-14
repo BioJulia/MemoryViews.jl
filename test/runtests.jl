@@ -693,6 +693,16 @@ end
     end
 end
 
+@testset "From parts" begin
+    v = [1 2; 3 4]
+    ref = Base.cconvert(Ptr, v)
+    mem = unsafe_from_parts(ref, 3)
+    @test mem == [1, 3, 2]
+    @test unsafe_from_parts(ref, 2) == [1, 3]
+    @test isempty(unsafe_from_parts(ref, 0))
+    @test mem isa MutableMemoryView{Int}
+end
+
 @testset "MemoryKind" begin
     @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
     @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
