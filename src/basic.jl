@@ -68,7 +68,7 @@ function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
 end
 
 Base.empty(T::Type{<:MemoryView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
-Base.pointer(x::MemoryView{T}) where {T} = pointer(x.ref)
+Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)

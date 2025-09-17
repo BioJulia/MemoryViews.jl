@@ -108,6 +108,18 @@ end
     @test Base.mightalias(view(v1, 2:3), MemoryView(v1))
 end
 
+@testset "Pointer" begin
+    v = [0x0102, 0x0102]
+    mem = MemoryView(v)
+    GC.@preserve v mem begin
+        @test pointer(v) === pointer(mem)
+    end
+    v = ["", ""]
+    GC.@preserve v mem begin
+        @test pointer(v) === pointer(ImmutableMemoryView(v))
+    end
+end
+
 # Span of views
 @testset "Span of views" begin
     mem = MemoryView("abc")
@@ -764,7 +776,7 @@ end
 @testset "LibDeflate" begin
     function test_view(view::MemoryView{UInt8}, mem::T, ::Type{T}) where {T}
         @test length(view) == sizeof(mem)
-        @test pointer(view) === pointer(mem)
+        @test UInt(pointer(view)) === UInt(pointer(mem))
         if T === LibDeflate.WriteableMemory
             @test view isa MutableMemoryView
         end
