@@ -3,6 +3,7 @@ using FixedSizeArrays
 using MemoryViews
 using Aqua
 using StringViews: StringView
+using LibDeflate: LibDeflate
 
 using MemoryViews: DelimitedIterator, Mutable, Immutable
 
@@ -758,6 +759,49 @@ end
         @test typeof(mem) == MutableMemoryView{eltype(A)}
         @test MemoryKind(typeof(A)) == IsMemory(MutableMemoryView{eltype(A)})
     end
+end
+
+@testset "LibDeflate" begin
+    function test_view(view::MemoryView{UInt8}, mem::T, ::Type{T}) where {T}
+        @test length(view) == sizeof(mem)
+        @test pointer(view) === pointer(mem)
+        if T === LibDeflate.WriteableMemory
+            @test view isa MutableMemoryView
+        end
+    end
+
+    RMem = LibDeflate.ReadableMemory
+    WMem = LibDeflate.WriteableMemory
+
+    @test_throws MethodError RMem(MemoryView(Int32[]))
+    @test_throws MethodError RMem(MemoryView(Int8[]))
+    @test_throws MethodError RMem(MemoryView(String[]))
+    @test_throws MethodError WMem(MemoryView(Int8[]))
+
+    @test_throws MethodError WMem(ImmutableMemoryView(UInt8[]))
+    @test_throws MethodError WMem(MemoryView(b"abc"))
+
+    for (mem, T) in Any[
+            (ImmutableMemoryView("abc"), RMem),
+            (MemoryView([0x01, 0x02]), WMem),
+            (ImmutableMemoryView([0x01, 0x01]), RMem),
+        ]
+        test_view(mem, T(mem), T)
+    end
+
+    cmem = MemoryView(zeros(UInt8, 100))
+    dmem = ImmutableMemoryView(b"TAGTCGTAGATGA")
+    dmem2 = MemoryView(zeros(UInt8, 100))
+
+    cbytes = LibDeflate.compress!(LibDeflate.Compressor(), cmem, dmem)
+    @test cbytes isa Int
+
+    dbytes = LibDeflate.decompress!(LibDeflate.Decompressor(), dmem2, cmem[1:cbytes])
+    @test dbytes isa Int
+
+    @test dmem2[1:dbytes] == dmem
+
+    @test LibDeflate.crc32(ImmutableMemoryView([0x01, 0x02, 0x03])) isa UInt32
 end
 
 Aqua.test_all(MemoryViews; ambiguities = false)
