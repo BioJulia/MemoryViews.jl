@@ -6,9 +6,15 @@ function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     return v
 end
 
-# TODO: This uses the internal `.mem` field of `MemoryRef`, but AFAIK there is no
-# API in Base to get the memory from a `MemoryRef`
-Base.parent(v::MemoryView) = v.ref.mem
+# In v1.12, this `parent` method was added. Before 1.12, we load this undocumented
+# field. This is safe-ish because it's very unlikely changes to the layout of
+# `MemoryRef` will be backported
+if VERSION < v"1.12"
+    Base.parent(v::MemoryView) = v.ref.mem
+else
+    Base.parent(v::MemoryView) = parent(v.ref)
+end
+
 Base.size(v::MemoryView) = (v.len,)
 Base.IndexStyle(::Type{<:MemoryView}) = Base.IndexLinear()
 
@@ -30,6 +36,12 @@ function Base.parentindices(x::MemoryView)
         ((elem_offset + 1):(elem_offset + x.len),)
     end
 end
+
+# TODO: If `Core.memoryrefoffset` is made public, use this impl instead
+# function Base.parentindices(x::MemoryView)
+#     start = Core.memoryrefoffset(x.ref)
+#     return (start:(start + length(x) - 1),)
+# end
 
 function Base.copy(x::MemoryView)
     isempty(x) && return x
@@ -56,7 +68,7 @@ function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
 end
 
 Base.empty(T::Type{<:MemoryView{E}}) where {E} = T(unsafe, memoryref(Memory{E}()), 0)
-Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
+Base.pointer(x::MemoryView{T}) where {T} = pointer(x.ref)
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
