@@ -726,6 +726,9 @@ end
     @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
     @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
 
+    @test MemoryKind(ImmutableMemoryView{Dict}) == IsMemory(ImmutableMemoryView{Dict})
+    @test MemoryKind(MutableMemoryView{UInt32}) == IsMemory(MutableMemoryView{UInt32})
+
     @test inner(IsMemory(MutableMemoryView{Int32})) == MutableMemoryView{Int32}
     @test inner(IsMemory(ImmutableMemoryView{Tuple{String, Int}})) ==
         ImmutableMemoryView{Tuple{String, Int}}
