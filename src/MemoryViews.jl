@@ -214,6 +214,7 @@ inner(::IsMemory{T}) where {T} = T
 
 MemoryKind(::Type) = NotMemory()
 MemoryKind(::Type{Union{}}) = NotMemory()
+MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
 include("construction.jl")
 include("basic.jl")
