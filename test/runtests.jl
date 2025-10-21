@@ -255,6 +255,13 @@ end
 
         @test_throws BoundsError mem[Base.OneTo(8)]
         @test_throws BoundsError mem[Base.OneTo(typemax(Int))]
+
+        # UInt indexing
+        v = MemoryView([3, 4, 5, 6, 7])
+        v2 = v[UInt(2):UInt(4)]
+        @test v2 == 4:6
+        @test isempty(v2[UInt(2):UInt(1)])
+        @test isempty(v2[UInt(6):UInt(5)])
     end
 
     @testset "Views of memviews" begin

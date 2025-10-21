@@ -110,7 +110,14 @@ function Base.getindex(v::MemoryView, idx::AbstractUnitRange)
     isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, Int(first(idx))::Int)
-    return typeof(v)(unsafe, newref, length(idx))
+    return typeof(v)(unsafe, newref, Int(length(idx))::Int)
+end
+
+function Base.getindex(v::MemoryView, idx::UnitRange{UInt})
+    isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
+    @boundscheck checkbounds(v, idx)
+    newref = @inbounds memoryref(v.ref, first(idx) % Int)
+    return typeof(v)(unsafe, newref, length(idx) % Int)
 end
 
 # Faster method, because we don't need to create a new memoryref, and also don't
