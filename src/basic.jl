@@ -179,6 +179,16 @@ function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     return unsafe_copyto!(dst, src)
 end
 
+function Base.fill!(v::MutableMemoryView{UInt8}, x::UInt8)
+    isempty(v) && return v
+    GC.@preserve v @ccall memset(
+        pointer(v)::Ptr{Nothing},
+        Int32(x)::Cint,
+        (length(v) % UInt)::Csize_t
+    )::Cvoid
+    return v
+end
+
 # Optimised methods that don't boundscheck
 function Base.findnext(p::Function, mem::MemoryView, start::Integer)
     i = Int(start)::Int

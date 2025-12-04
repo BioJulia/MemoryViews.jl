@@ -580,6 +580,18 @@ end
     end
 end
 
+@testset "memset" begin
+    @test_throws Exception fill!(ImmutableMemoryView(UInt8[1, 2, 3]), 0x02)
+
+    v = MemoryView(UInt8[1, 2, 3, 4, 5])
+    fill!(v, 0x03)
+    @test v == fill(0x03, length(v))
+
+    v = MemoryView(UInt8[])
+    fill!(v, 0x03)
+    @test isempty(v)
+end
+
 @testset "Iterators.reverse" begin
     for v in Any[AbstractString["abc", "def", ""], Char['a', 'b'], UInt32[], Int16[9, 2, 1]]
         mem = MemoryView(v)
