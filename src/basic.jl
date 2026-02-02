@@ -23,25 +23,27 @@ function Base.iterate(x::MemoryView, i::Int = 1)
     return (@inbounds x[i], i + 1)
 end
 
-# Note: For zero-sized elements, this always returns 1:x.len, which may not be
-# the correct indices. However, the result is indistinguishable from the "correct"
-# result, so it doesn't matter
-function Base.parentindices(x::MemoryView)
-    elz = Base.elsize(x)
-    return if iszero(elz)
-        (1:(x.len),)
-    else
-        byte_offset = pointer(x.ref) - pointer(x.ref.mem)
-        elem_offset = div(byte_offset % UInt, elz % UInt) % Int
-        ((elem_offset + 1):(elem_offset + x.len),)
+# Base.memoryindex exists in Julia 1.13 onwards.
+@static if VERSION < v"1.13"
+    # Note: For zero-sized elements, this always returns 1:x.len, which may not be
+    # the correct indices. However, the result is indistinguishable from the "correct"
+    # result, so it doesn't matter
+    function Base.parentindices(x::MemoryView)
+        elz = Base.elsize(x)
+        return if iszero(elz)
+            (1:(x.len),)
+        else
+            byte_offset = pointer(x.ref) - pointer(x.ref.mem)
+            elem_offset = div(byte_offset % UInt, elz % UInt) % Int
+            ((elem_offset + 1):(elem_offset + x.len),)
+        end
+    end
+else
+    function Base.parentindices(x::MemoryView)
+        start = Base.memoryindex(x.ref)
+        return (start:(start + length(x) - 1),)
     end
 end
-
-# TODO: If `Core.memoryrefoffset` is made public, use this impl instead
-# function Base.parentindices(x::MemoryView)
-#     start = Core.memoryrefoffset(x.ref)
-#     return (start:(start + length(x) - 1),)
-# end
 
 function Base.copy(x::MemoryView)
     isempty(x) && return x
