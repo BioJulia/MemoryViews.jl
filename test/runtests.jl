@@ -659,7 +659,7 @@ end
     data = b"Hello, world!"
     buf = IOBuffer(data)
     v = fill(0xaa, 25)
-    readbytes!(buf, MemoryView(v), 7)
+    @test readbytes!(buf, MemoryView(v), 7) == 7
     @test v[1:8] == b"Hello, \xaa"
 
     # With nb being higher than the vector length
