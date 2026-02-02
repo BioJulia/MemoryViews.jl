@@ -332,10 +332,11 @@ function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
     length(a) == length(b) || return false
     (eltype(a) === Union{} || Base.issingletontype(eltype(a))) && return true
     a.ref === b.ref && return true
+    nbytes = length(a) * sizeof(eltype(a))
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
         bptr = Ptr{Nothing}(pointer(b))
-        y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, length(a)::Int)::Cint
+        y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, nbytes::Csize_t)::Cint
     end
     return iszero(y)
 end

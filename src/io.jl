@@ -14,5 +14,5 @@ function Base.readbytes!(io::IO, v::MutableMemoryView{UInt8}, nb::Integer = leng
         GC.@preserve v unsafe_read(io, Base.unsafe_convert(Ptr{UInt8}, remaining), ba % UInt)
         remaining = remaining[(ba + 1):end]
     end
-    return length(v) - length(remaining)
+    return min(nb, length(v) - length(remaining))
 end
