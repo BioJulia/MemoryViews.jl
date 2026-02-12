@@ -69,7 +69,7 @@ The first will contain all indices in `1:i-1`, the second `i:end`.
 This function will throw a `BoundsError` if `i` is not in `1:end+1`.
 
 # Examples
-```jldocstest
+```jldoctest
 julia> split_at(MemoryView([1,2,3,4,5]), 2)
 ([1], [2, 3, 4, 5])
 
