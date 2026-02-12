@@ -668,6 +668,9 @@ end
     v = fill(0xaa, 8)
     readbytes!(buf, MemoryView(v), 10)
     @test v == b"Hello, w"
+
+    # Negative nb is invalid
+    @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)
 end
 
 @testset "Base arrays" begin
