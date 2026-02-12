@@ -4,6 +4,7 @@
 # This encourages implementors of IOs to implement a method for this.
 function Base.readbytes!(io::IO, v::MutableMemoryView{UInt8}, nb::Integer = length(v))
     nb = Int(nb)::Int
+    nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
     # A view of all the bytes not yet read
     remaining = @inbounds v[1:min(nb, length(v))]
     while !isempty(remaining)
