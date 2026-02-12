@@ -841,4 +841,8 @@ end
     @test LibDeflate.crc32(ImmutableMemoryView([0x01, 0x02, 0x03])) isa UInt32
 end
 
+if VERSION >= v"1.14.0-DEV.1695"
+    @test isempty(Test.detect_closure_boxes(MemoryViews))
+end
+
 Aqua.test_all(MemoryViews; ambiguities = false)
