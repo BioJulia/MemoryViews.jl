@@ -51,6 +51,10 @@ function Base.copy(x::MemoryView)
     return typeof(x)(unsafe, memoryref(newmem), x.len)
 end
 
+function Base.checkbounds(v::MemoryView, is...)
+    checkbounds_lightboundserror(v, is...)
+end
+
 function Base.getindex(v::MemoryView, i::Integer)
     @boundscheck checkbounds(v, i)
     ref = @inbounds memoryref(v.ref, i)
