@@ -12,7 +12,7 @@ export MemoryView,
 
 public Mutable, Immutable, DelimitedIterator
 
-using LightBoundsErrors: checkbounds_lightboundserror
+using LightBoundsErrors: checkbounds_lightboundserror, throw_lightboundserror
 
 """
     Unsafe
