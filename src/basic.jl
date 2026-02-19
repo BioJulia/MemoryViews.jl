@@ -30,7 +30,8 @@ end
     function Base.parentindices(x::MemoryView)
         elz = Base.elsize(x)
         return if iszero(elz)
-            (1:(x.len),)
+            offset = Int(x.ref.ptr_or_offset)
+            ((1 + offset):(x.len + offset),)
         else
             byte_offset = pointer(x.ref) - pointer(x.ref.mem)
             elem_offset = div(byte_offset % UInt, elz % UInt) % Int
@@ -116,21 +117,21 @@ function Base.getindex(v::MemoryView{T, M}, idx::AbstractUnitRange) where {T, M}
     isempty(idx) && return unsafe_new_memoryview(M, memoryref(v.ref.mem), 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, Int(first(idx))::Int)
-    return typeof(v)(unsafe, newref, Int(length(idx))::Int)
+    return unsafe_new_memoryview(M, newref, Int(length(idx))::Int)
 end
 
-function Base.getindex(v::MemoryView, idx::UnitRange{UInt})
-    isempty(idx) && return typeof(v)(unsafe, memoryref(v.ref.mem), 0)
+function Base.getindex(v::MemoryView{T, M}, idx::UnitRange{UInt}) where {T, M}
+    isempty(idx) && return unsafe_new_memoryview(M, v.ref, 0)
     @boundscheck checkbounds(v, idx)
     newref = @inbounds memoryref(v.ref, first(idx) % Int)
-    return typeof(v)(unsafe, newref, length(idx) % Int)
+    return unsafe_new_memoryview(M, newref, length(idx) % Int)
 end
 
 # Faster method, because we don't need to create a new memoryref, and also don't
 # need to handle the empty case.
-function Base.getindex(v::MemoryView, idx::Base.OneTo)
+function Base.getindex(v::MemoryView{T, M}, idx::Base.OneTo) where {T, M}
     @boundscheck checkbounds(v, idx)
-    return typeof(v)(unsafe, v.ref, last(idx))
+    return unsafe_new_memoryview(M, v.ref, last(idx))
 end
 
 Base.getindex(v::MemoryView, ::Colon) = v

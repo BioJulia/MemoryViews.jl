@@ -113,8 +113,8 @@ julia> view = unsafe_from_parts(ref, 3)
  3
 ```
 """
-function unsafe_from_parts(ref::MemoryRef{T}, len::Int) where {T}
-    return MemoryView{T, Mutable}(unsafe, ref, len)
+function unsafe_from_parts(ref::MemoryRef, len::Int)
+    return unsafe_new_memoryview(Mutable, ref, len)
 end
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
@@ -123,17 +123,6 @@ _get_mutability(::MemoryView{T, M}) where {T, M} = M
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
 function ImmutableMemoryView(x::MemoryView)
     return unsafe_new_memoryview(Immutable, x.ref, x.len)
-end
-
-"""
-    unsafe_wrap(MutableMemoryView, x::MemoryView)
-
-Convert a memory view into a mutable memory view.
-Note that it may cause undefined behaviour, if supposedly immutable data
-is observed to be mutated.
-"""
-function Base.unsafe_wrap(::Type{MutableMemoryView}, x::MemoryView{T}) where {T}
-    return unsafe_new_memoryview(Mutable, x.ref, x.len)
 end
 
 # Constructors that allows users to specify eltype explicitly, e.g.

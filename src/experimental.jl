@@ -97,6 +97,9 @@ If `v` is empty or already aligned, `a` will be empty.
 If no elements of `v` is aligned, `b` will be empty and `a` will be equal to `v`.
 The element type of `v` must be a bitstype.
 
+!!! warning
+    When using this function, make sure to `GC.@preserve v`, to make sure Julia
+    does not move `v` in memory.
 
 # Examples:
 ```
