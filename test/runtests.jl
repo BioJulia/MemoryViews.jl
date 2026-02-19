@@ -42,7 +42,7 @@ MUT_BACKINGS = Any[
     @testset "Unsafe mutability" begin
         v = [1.0, 2.0, 3.0]
         m = ImmutableMemoryView(v)
-        m2 = unsafe_wrap(MutableMemoryView, m)
+        m2 = unsafe_from_parts(m.ref, 3)
         m2[2] = 5.0
         @test v == [1.0, 5.0, 3.0]
     end

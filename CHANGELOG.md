@@ -8,13 +8,16 @@ not be mentioned here, because they do not impact how the package is to be used.
 ### Breaking changes
 * Removed the `Unsafe` trait type:
     - Instead of `MutableMemoryView(::Unsafe, ::MemoryView)`, use
-      `unsafe_wrap(MutableMemoryView, ::MemoryView)`
+      `unsafe_from_parts(::MemoryRef, ::Int)`
     - Using the inner constructor `MemoryView{T, M}(::Unsafe, ::MemoryRef{T}, ::Int)`
       was never documented API and is now removed.
 
 * `MemoryView(::SubArray)` now accepts fewer subarray types. However, it is unlikely
   that any instance that is now no longer accepted worked previously, so it is
-  unlikely to be breaking in practice. 
+  unlikely to be breaking in practice.
+
+## Other
+* `parentindices` now works correctly for zero-sized structs.
 
 ## 0.3.5
 * Add method `MemoryKind{::Type{<:MemoryView}}`
