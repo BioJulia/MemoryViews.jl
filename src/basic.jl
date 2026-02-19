@@ -141,7 +141,7 @@ Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[id
 function truncate(mem::MemoryView, include_last::Integer)
     lst = Int(include_last)::Int
     @boundscheck if (lst % UInt) > length(mem) % UInt
-        throw(BoundsError(mem, lst))
+        throw_lightboundserror(mem, lst)
     end
     return typeof(mem)(unsafe, mem.ref, lst)
 end
@@ -151,7 +151,7 @@ end
 function truncate_start_nonempty(mem::MemoryView, from::Integer)
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) ≥ length(mem) % UInt
-        throw(BoundsError(mem, frm))
+        throw_lightboundserror(mem, frm)
     end
     newref = @inbounds memoryref(mem.ref, frm)
     return typeof(mem)(unsafe, newref, length(mem) - frm + 1)
@@ -162,7 +162,7 @@ end
 function truncate_start(mem::MemoryView, from::Integer)
     frm = Int(from)::Int
     @boundscheck if ((frm - 1) % UInt) > length(mem) % UInt
-        throw(BoundsError(mem, frm))
+        throw_lightboundserror(mem, frm)
     end
     frm == 1 && return mem
     newref = @inbounds memoryref(mem.ref, frm - (from == length(mem) + 1))
@@ -176,12 +176,12 @@ function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) wher
 end
 
 function Base.copy!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
-    @boundscheck length(dst) == length(src) || throw(BoundsError(dst, eachindex(src)))
+    @boundscheck length(dst) == length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
 function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
-    @boundscheck length(dst) ≥ length(src) || throw(BoundsError(dst, eachindex(src)))
+    @boundscheck length(dst) ≥ length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
@@ -199,7 +199,7 @@ end
 # Optimised methods that don't boundscheck
 function Base.findnext(p::Function, mem::MemoryView, start::Integer)
     i = Int(start)::Int
-    @boundscheck (i < 1 && throw(BoundsError(mem, i)))
+    @boundscheck (i < 1 && throw_lightboundserror(mem, i))
     @inbounds while i <= length(mem)
         p(mem[i]) && return i
         i += 1
@@ -242,7 +242,7 @@ Base.@propagate_inbounds function _findnext(
         start::Integer,
     ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
-    @boundscheck(start < 1 && throw(BoundsError(mem, start)))
+    @boundscheck(start < 1 && throw_lightboundserror(mem, start))
     start > length(mem) && return nothing
     im = @inbounds truncate_start_nonempty(ImmutableMemoryView(mem), start)
     v_ind = @something memchr(im, byte) return nothing
@@ -264,7 +264,7 @@ end
 
 function Base.findprev(p::Function, mem::MemoryView, start::Integer)
     i = Int(start)::Int
-    @boundscheck (i > length(mem) && throw(BoundsError(mem, i)))
+    @boundscheck (i > length(mem) && throw_lightboundserror(mem, i))
     @inbounds while i > 0
         p(mem[i]) && return i
         i -= 1
@@ -302,7 +302,7 @@ Base.@propagate_inbounds function _findprev(
         start::Integer,
     ) where {T <: Union{UInt8, Int8}}
     start = Int(start)::Int
-    @boundscheck (start > length(mem) && throw(BoundsError(mem, start)))
+    @boundscheck (start > length(mem) && throw_lightboundserror(mem, start))
     start < 1 && return nothing
     im = @inbounds truncate(ImmutableMemoryView(mem), start)
     return memrchr(im, byte)
