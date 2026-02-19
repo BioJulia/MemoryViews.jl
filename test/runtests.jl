@@ -397,15 +397,15 @@ end
         @test v1 == v2
         @test mem1 == mem2
 
-        @test_throws BoundsError copy!(MemoryView([1]), MemoryView([1, 2]))
-        @test_throws BoundsError copy!(MemoryView([1, 2]), MemoryView([1]))
+        @test_throws LightBoundsError copy!(MemoryView([1]), MemoryView([1, 2]))
+        @test_throws LightBoundsError copy!(MemoryView([1, 2]), MemoryView([1]))
 
         # Copyto!
         v1 = [4, 2, 6, 7, 9]
         v2 = [1, 5, 2, 3]
         copyto!(MemoryView(v1), MemoryView(v2))
         @test v1 == [1, 5, 2, 3, 9]
-        @test_throws BoundsError copyto!(MemoryView(v2), MemoryView(v1))
+        @test_throws LightBoundsError copyto!(MemoryView(v2), MemoryView(v1))
 
         # unsafe_copyto!
         v1 = [3, 6, 2, 1]
@@ -527,8 +527,8 @@ end
             @test findnext(isodd, mem, 0x04) === nothing
             @test findnext(isodd, mem, 10) === nothing
 
-            @test_throws BoundsError findnext(isodd, mem, 0)
-            @test_throws BoundsError findnext(isodd, mem, -1)
+            @test_throws LightBoundsError findnext(isodd, mem, 0)
+            @test_throws LightBoundsError findnext(isodd, mem, -1)
 
             @test findprev(isodd, mem, 4) == 3
             @test findprev(isodd, mem, 0x03) == 3
@@ -536,8 +536,8 @@ end
             @test findprev(isodd, mem, 0x00) === nothing
             @test findprev(isodd, mem, -10) === nothing
 
-            @test_throws BoundsError findprev(isodd, mem, 5)
-            @test_throws BoundsError findprev(isodd, mem, 7)
+            @test_throws LightBoundsError findprev(isodd, mem, 5)
+            @test_throws LightBoundsError findprev(isodd, mem, 7)
         end
 
         @testset "Memchr routines" begin
@@ -548,8 +548,8 @@ end
                 @test findnext(==(T(2)), mem, 3) == 5
                 @test findnext(==(T(7)), mem, 4) === nothing
                 @test findnext(==(T(2)), mem, 7) === nothing
-                @test_throws BoundsError findnext(iszero, mem, 0)
-                @test_throws BoundsError findnext(iszero, mem, -3)
+                @test_throws LightBoundsError findnext(iszero, mem, 0)
+                @test_throws LightBoundsError findnext(iszero, mem, -3)
 
                 @test findlast(iszero, mem) == 4
                 @test findprev(iszero, mem, 3) === nothing
@@ -559,7 +559,7 @@ end
                 @test findprev(==(T(9)), mem, 3) === nothing
                 @test findprev(==(T(2)), mem, -2) === nothing
                 @test findprev(iszero, mem, 0) === nothing
-                @test_throws BoundsError findprev(iszero, mem, 7)
+                @test_throws LightBoundsError findprev(iszero, mem, 7)
             end
             mem = MemoryView(Int8[2, 3, -1])
             @test findfirst(==(0xff), mem) === nothing
