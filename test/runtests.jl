@@ -4,6 +4,7 @@ using MemoryViews
 using Aqua
 using StringViews: StringView
 using LibDeflate: LibDeflate
+using LightBoundsErrors: LightBoundsError
 
 using MemoryViews: DelimitedIterator, Mutable, Immutable
 
@@ -212,7 +213,7 @@ end
 
         @test mem[3] == cu[3]
         for i in [-100, -4, -1, 0, length(cu) + 1, length(cu) + 100]
-            @test_throws BoundsError mem[i]
+            @test_throws LightBoundsError mem[i]
         end
     end
 
@@ -253,8 +254,8 @@ end
         v = mem[Base.OneTo(0)]
         @test mem === v
 
-        @test_throws BoundsError mem[Base.OneTo(8)]
-        @test_throws BoundsError mem[Base.OneTo(typemax(Int))]
+        @test_throws LightBoundsError mem[Base.OneTo(8)]
+        @test_throws LightBoundsError mem[Base.OneTo(typemax(Int))]
 
         # UInt indexing
         v = MemoryView([3, 4, 5, 6, 7])
@@ -474,8 +475,8 @@ end
             @test split_first(mem) == (mem[1], mem[2:end])
             @test split_last(mem) == (mem[end], mem[1:(end - 1)])
             mem = mem[1:0]
-            @test_throws BoundsError split_first(mem)
-            @test_throws BoundsError split_last(mem)
+            @test_throws LightBoundsError split_first(mem)
+            @test_throws LightBoundsError split_last(mem)
         end
 
         # Split empty mem at
