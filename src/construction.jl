@@ -52,6 +52,6 @@ MemoryKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemoryKind(P
 function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
     memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))
-    @boundscheck checkbounds(memview.ref.mem, inds)
+    @boundscheck checkbounds_lightboundserror(memview.ref.mem, inds)
     return @inbounds memview[inds]
 end

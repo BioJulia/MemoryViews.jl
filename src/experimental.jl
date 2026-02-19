@@ -78,7 +78,7 @@ julia> split_at(MemoryView(Int8[1, 2, 3]), 4)
 ```
 """
 function split_at(v::MemoryView, i::Int)
-    @boundscheck checkbounds(1:(lastindex(v) + 1), i)
+    @boundscheck checkbounds_lightboundserror(1:(lastindex(v) + 1), i)
     return (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
 end
 
