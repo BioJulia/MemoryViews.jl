@@ -324,6 +324,20 @@ end
     @test pointer(v, 3) == pointer(mem, 2)
 end
 
+@testset "memoryref" begin
+    mem = MemoryView([10, 20, 30])[2:3]
+    ref = memoryref(mem)
+    @test ref === mem.ref
+    @test memoryref(ref, 1)[] === 20
+    @test memoryref(ref, 2)[] === 30
+
+    imm = MemoryView("abc")[2:3]
+    ref = memoryref(imm)
+    @test ref === imm.ref
+    @test memoryref(ref, 1)[] === UInt8('b')
+    @test memoryref(ref, 2)[] === UInt8('c')
+end
+
 @testset "Misc functions" begin
     @testset "Copying" begin
         # Immutable
