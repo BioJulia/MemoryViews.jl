@@ -366,6 +366,13 @@ end
 
         mem = MemoryView(view(Vector{String}(undef, 10), 5:7))
         @test parentindices(mem) == (5:7,)
+
+        mem = MemoryView(Vector{Nothing}(undef, 10))[4:7]
+        @test parentindices(mem) == (4:7,)
+
+        struct ZeroSized end
+        mem = MemoryView(Vector{ZeroSized}(undef, 8))[3:5]
+        @test parentindices(mem) == (3:5,)
     end
 
     @testset "Similar and empty" begin
@@ -755,6 +762,9 @@ end
     @test unsafe_from_parts(ref, 2) == [1, 3]
     @test isempty(unsafe_from_parts(ref, 0))
     @test mem isa MutableMemoryView{Int}
+
+    v2 = MemoryView([3, 1, 4])
+    @test Base.cconvert(Ptr{Int}, v2) === v2.ref
 end
 
 @testset "MemoryKind" begin
