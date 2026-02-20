@@ -14,7 +14,6 @@ function Base.Memory{T}(x::MemoryView{T}) where {T}
     end
 end
 
-
 function Base.copyto!(A::Union{Memory{T}, Array{T}}, mem::MemoryView{T}) where {T}
     copyto!(MemoryView(A), mem)
     return A

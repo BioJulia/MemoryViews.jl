@@ -12,12 +12,16 @@ not be mentioned here, because they do not impact how the package is to be used.
     - Using the inner constructor `MemoryView{T, M}(::Unsafe, ::MemoryRef{T}, ::Int)`
       was never documented API and is now removed.
 
+* `Matrix` and other `Array` types with a different dimensionality than 1 is now
+  `NotMemory`, since it is not equal to its own memory view, due to shape mismatch.
+
 * `MemoryView(::SubArray)` now accepts fewer subarray types. However, it is unlikely
   that any instance that is now no longer accepted worked previously, so it is
   unlikely to be breaking in practice.
 
 ## Other
 * `parentindices` now works correctly for zero-sized structs.
+* `Base.memoryref(::MemoryView)` obtains the `MemoryRef` in a `MemoryView`.
 
 ## 0.3.5
 * Add method `MemoryKind{::Type{<:MemoryView}}`
