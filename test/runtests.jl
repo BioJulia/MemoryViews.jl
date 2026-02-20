@@ -759,7 +759,7 @@ end
         IsMemory(ImmutableMemoryView{UInt8})
     @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
         IsMemory(MutableMemoryView{String})
-    @test MemoryKind(Matrix{Nothing}) == IsMemory(MutableMemoryView{Nothing})
+    @test MemoryKind(Matrix{Nothing}) == NotMemory()
     @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
     @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
 
