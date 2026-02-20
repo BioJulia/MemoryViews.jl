@@ -15,11 +15,11 @@ Third, after implementing your method for <code>MemoryView</code>, it may be eas
 For a type <code>T</code>, <code>MemoryKind(T)</code> returns one of two types:</p><ul><li><p><code>NotMemory()</code> if <code>T</code>s are not equivalent to its own memory. Examples include <code>Int</code>, which has no memory representation because
 they are not heap allocated, and <code>String</code>, which <em>are</em> backed by memory, but which are semantically different from an <code>AbstractVector</code>
 containing its bytes.</p></li><li><p><code>IsMemory{M}()</code> where <code>M</code> is a concrete subtype of <code>MemoryView</code>, if instances of <code>T</code> <em>are</em> equivalent to their own memory.
-Examples include <code>Array</code>s and <code>Codeunits{String}</code>. For these objects, it&#39;s the case that <code>x == MemoryView(x)</code>.</p></li></ul><pre><code class="language-julia-repl hljs">julia&gt; MemoryKind(Vector{Union{Int32, UInt32}})
+Examples include <code>Vector</code>s and <code>Codeunits{String}</code>. For these objects, it&#39;s the case that <code>x == MemoryView(x)</code>.</p></li></ul><pre><code class="language-julia-repl hljs">julia&gt; MemoryKind(Vector{Union{Int32, UInt32}})
 IsMemory{MutableMemoryView{Union{Int32, UInt32}}}()
 
-julia&gt; MemoryKind(Matrix{String})
-IsMemory{MutableMemoryView{String}}()
+julia&gt; MemoryKind(Matrix{String}) # dimension mismatch, not equal
+NotMemory()
 
 julia&gt; MemoryKind(SubString{String})
 NotMemory()</code></pre><h2 id="Implementing-MemoryView-interfaces"><a class="docs-heading-anchor" href="#Implementing-MemoryView-interfaces">Implementing <code>MemoryView</code> interfaces</a><a id="Implementing-MemoryView-interfaces-1"></a><a class="docs-heading-anchor-permalink" href="#Implementing-MemoryView-interfaces" title="Permalink"></a></h2><p>When implementing a method that has a fast-past for memory-like types, you typically want to</p><ul><li><p>At the top level, dispatch on <code>MemoryKind</code> of your argument to funnel the memory-like objects into
@@ -31,7 +31,7 @@ my_hash(x) = my_hash(MemoryKind(typeof(x)), x)
 my_hash(::IsMemory{&lt;:MemoryView{UInt8}}, x) = my_hash(ImmutableMemoryView(x))
 
 # IsMemory with eltype other than UInt8 can&#39;t use the fast low-level function
-my_hash(T::IsMemory, x) = my_hash(NotMemory(), x)
+my_hash(::IsMemory, x) = my_hash(NotMemory(), x)
 
 function my_hash(::NotMemory, x)
     # fallback implementation
@@ -46,4 +46,4 @@ end
 # we want to treat strings as if they are.
 function my_hash(x::Union{String, SubString{String}})
     my_hash(MemoryView(x))
-end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« MemoryViews</a><a class="docs-footer-nextpage" href="../base/">MemoryViews in Base »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 20 February 2026 10:52">Friday 20 February 2026</span>. Using Julia version 1.14.0-DEV.1760.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« MemoryViews</a><a class="docs-footer-nextpage" href="../base/">MemoryViews in Base »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 20 February 2026 11:17">Friday 20 February 2026</span>. Using Julia version 1.14.0-DEV.1760.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
