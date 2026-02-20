@@ -485,6 +485,8 @@ end
             @test split_at(mem, 2) == (mem[1:1], mem[2:end])
             @test split_at(mem, lastindex(mem)) == (mem[1:(end - 1)], mem[end:end])
             @test split_at(mem, lastindex(mem) + 1) == (mem[1:end], mem[1:0])
+            @test_throws LightBoundsError split_at(mem, 0)
+            @test_throws LightBoundsError split_at(mem, lastindex(mem) + 2)
             mem = mem[2:2]
             @test split_first(mem) == (mem[1], mem[2:end])
             @test split_last(mem) == (mem[end], mem[1:(end - 1)])
@@ -498,6 +500,8 @@ end
         (v1, v2) = split_at(mem, 1)
         @test v1 == v2
         @test isempty(v1)
+        @test_throws LightBoundsError split_at(mem, 0)
+        @test_throws LightBoundsError split_at(mem, 2)
     end
 
     @testset "Split unaligned" begin

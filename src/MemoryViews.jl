@@ -110,7 +110,7 @@ Create a mutable memory view from its parts.
 ```jldoctest
 julia> v = [1,2,3,4];
 
-julia> ref = Base.memoryref(v);
+julia> ref = Base.cconvert(Ptr, v);
 
 julia> view = unsafe_from_parts(ref, 3)
 3-element MutableMemoryView{Int64}:
