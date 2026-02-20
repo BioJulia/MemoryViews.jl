@@ -63,7 +63,7 @@ my_hash(x) = my_hash(MemoryKind(typeof(x)), x)
 my_hash(::IsMemory{<:MemoryView{UInt8}}, x) = my_hash(ImmutableMemoryView(x))
 
 # IsMemory with eltype other than UInt8 can't use the fast low-level function
-my_hash(T::IsMemory, x) = my_hash(NotMemory(), x)
+my_hash(::IsMemory, x) = my_hash(NotMemory(), x)
 
 function my_hash(::NotMemory, x)
     # fallback implementation

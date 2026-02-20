@@ -8,7 +8,11 @@ export MemoryView,
     NotMemory,
     inner,
     split_each,
-    unsafe_from_parts
+    unsafe_from_parts,
+    split_first,
+    split_last,
+    split_at,
+    split_unaligned
 
 public Mutable, Immutable, DelimitedIterator
 
@@ -207,7 +211,6 @@ MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
 include("construction.jl")
 include("basic.jl")
-include("experimental.jl")
 include("delimited.jl")
 include("base_arrays.jl")
 include("io.jl")
