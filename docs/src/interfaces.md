@@ -34,14 +34,14 @@ For a type `T`, `MemoryKind(T)` returns one of two types:
   they are not heap allocated, and `String`, which _are_ backed by memory, but which are semantically different from an `AbstractVector`
   containing its bytes.
 * `IsMemory{M}()` where `M` is a concrete subtype of `MemoryView`, if instances of `T` _are_ equivalent to their own memory.
-  Examples include `Array`s and `Codeunits{String}`. For these objects, it's the case that `x == MemoryView(x)`.
+  Examples include `Vector`s and `Codeunits{String}`. For these objects, it's the case that `x == MemoryView(x)`.
 
 ```jldoctest
 julia> MemoryKind(Vector{Union{Int32, UInt32}})
 IsMemory{MutableMemoryView{Union{Int32, UInt32}}}()
 
-julia> MemoryKind(Matrix{String})
-IsMemory{MutableMemoryView{String}}()
+julia> MemoryKind(Matrix{String}) # dimension mismatch, not equal
+NotMemory()
 
 julia> MemoryKind(SubString{String})
 NotMemory()
