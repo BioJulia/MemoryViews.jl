@@ -24,9 +24,6 @@ end
 
 # Base.memoryindex exists in Julia 1.13 onwards.
 @static if VERSION < v"1.13"
-    # Note: For zero-sized elements, this always returns 1:x.len, which may not be
-    # the correct indices. However, the result is indistinguishable from the "correct"
-    # result, so it doesn't matter
     function Base.parentindices(x::MemoryView)
         elz = Base.elsize(x)
         return if iszero(elz)
