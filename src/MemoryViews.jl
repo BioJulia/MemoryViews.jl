@@ -97,14 +97,16 @@ Create a mutable memory view from its parts.
 * `len` is not negative
 * All indices `i in 1:len` are valid for `ref` (i.e. `memoryref(ref, i)` would
   not throw)
-* If `ref` is derived from immutable memory, the returned memory view must not
-  be mutated. The caller should immediately convert it to an immutable view.
+* If `ref` is derived from immutable memory, it is the caller's responsibility
+  to ensure that mutating the memory does not result in undefined behaviour.
+  For example, `ref` may be derived from a `String`, and mutating `String`s in
+  Julia may result in undefined behaviour.
 
 # Examples
 ```jldoctest
 julia> v = [1,2,3,4];
 
-julia> ref = Base.cconvert(Ptr, v);
+julia> ref = Base.memoryref(v);
 
 julia> view = unsafe_from_parts(ref, 3)
 3-element MutableMemoryView{Int64}:
@@ -116,6 +118,14 @@ julia> view = unsafe_from_parts(ref, 3)
 function unsafe_from_parts(ref::MemoryRef, len::Int)
     return unsafe_new_memoryview(Mutable, ref, len)
 end
+
+"""
+    Base.memoryref(x::MemoryView{T})::MemoryRef{T}
+
+Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
+except if `x` is empty, where it may point to one element past the end.
+"""
+Base.memoryref(x::MemoryView) = x.ref
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
