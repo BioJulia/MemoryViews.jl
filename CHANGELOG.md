@@ -15,6 +15,11 @@ not be mentioned here, because they do not impact how the package is to be used.
 * `Matrix` and other `Array` types with a different dimensionality than 1 is now
   `NotMemory`, since it is not equal to its own memory view, due to shape mismatch.
 
+* Out of bounds access now throws a `LightBoundsError` from the LightBoundsErrors
+  package, instead of `Base.BoundsError`.
+  This improves codegen slightly, as it enables escape analysis of the array,
+  and outlines error paths slightly more aggressively.
+
 * `MemoryView(::SubArray)` now accepts fewer subarray types. However, it is unlikely
   that any instance that is now no longer accepted worked previously, so it is
   unlikely to be breaking in practice.
