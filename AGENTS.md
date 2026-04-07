@@ -29,7 +29,6 @@ Set `--check-bounds=yes` to force boundschecking when running experiments.
 **Source files**:
 - `construction.jl` — constructors from Array, Memory, String, SubArray, CodeUnits
 - `basic.jl` — indexing, slicing (returns views, not copies), copying, find operations with memchr/memrchr C calls, comparison via memcmp
-- `experimental.jl` — `split_first`, `split_last`, `split_at`, `split_unaligned`
 - `delimited.jl` — `split_each` delimiter iterator
 - `base_arrays.jl` — Vector/Memory conversion, append
 - `io.jl` — `readbytes!`

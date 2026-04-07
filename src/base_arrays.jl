@@ -26,6 +26,7 @@ function Base.copy!(A::Union{Memory{T}, Array{T}}, mem::MemoryView{T}) where {T}
 end
 
 function Base.append!(v::Vector{T}, mem::MemoryView{T}) where {T}
+    isempty(mem) && return v
     old_len = length(v)
     resize!(v, length(v) + length(mem))
     dst = @inbounds MemoryView(v)[(old_len + 1):end]
