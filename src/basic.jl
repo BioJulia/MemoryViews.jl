@@ -186,7 +186,7 @@ function Base.copyto!(dst::MutableMemoryView, di::Integer, src::MemoryView{T}, s
     N = Int(N)::Int
     dst = dst[di:(di + N - 1)]
     src = src[si:(si + N - 1)]
-    copyto!(dst, src)
+    return copyto!(dst, src)
 end
 
 function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
