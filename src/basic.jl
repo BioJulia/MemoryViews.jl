@@ -8,7 +8,7 @@ end
 
 # The parent method for memoryref was added in 1.12. In versions before that,
 # it can be accessed by reaching into internals.
-@static if VERSION < v"1.12"
+@static if VERSION < v"1.12.0-DEV.966"
     Base.parent(v::MemoryView) = v.ref.mem
 else
     Base.parent(v::MemoryView) = parent(v.ref)
@@ -23,17 +23,10 @@ function Base.iterate(x::MemoryView, i::Int = 1)
 end
 
 # Base.memoryindex exists in Julia 1.13 onwards.
-@static if VERSION < v"1.13"
+@static if VERSION < v"1.13.0-DEV.1289"
     function Base.parentindices(x::MemoryView)
-        elz = Base.elsize(x)
-        return if iszero(elz)
-            offset = Int(x.ref.ptr_or_offset)
-            ((1 + offset):(x.len + offset),)
-        else
-            byte_offset = pointer(x.ref) - pointer(x.ref.mem)
-            elem_offset = div(byte_offset % UInt, elz % UInt) % Int
-            ((elem_offset + 1):(elem_offset + x.len),)
-        end
+        start = Core.memoryrefoffset(x.ref)
+        return (start:(start + length(x) - 1),)
     end
 else
     function Base.parentindices(x::MemoryView)
@@ -85,12 +78,14 @@ function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
     (isempty(a) | isempty(b)) && return false
     # We can't compare the underlying Memory with === to add a fast path here,
     # because users can create aliasing, but distinct Memory using unsafe_wrap.
-    (p1, p2) = (pointer(a), pointer(b))
-    elz = Base.elsize(a)
-    return if p1 < p2
-        p1 + length(a) * elz > p2
-    else
-        p2 + length(b) * elz > p1
+    GC.@preserve a b begin
+        (p1, p2) = (pointer(a), pointer(b))
+        elz = Base.elsize(a)
+        return if p1 < p2
+            p1 + length(a) * elz > p2
+        else
+            p2 + length(b) * elz > p1
+        end
     end
 end
 
@@ -183,12 +178,23 @@ function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
     return unsafe_copyto!(dst, src)
 end
 
+# This function is kind of bad API, and users should not use it. However, without this overload,
+# the fallback definition is used instead which is even worse.
+function Base.copyto!(dst::MutableMemoryView, di::Integer, src::MemoryView{T}, si::Integer, N::Integer) where {T}
+    di = Int(di)::Int
+    si = Int(si)::Int
+    N = Int(N)::Int
+    dst = dst[di:(di + N - 1)]
+    src = src[si:(si + N - 1)]
+    return copyto!(dst, src)
+end
+
 function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
     xT = convert(UInt8, x)::UInt8
     isempty(v) && return v
     GC.@preserve v @ccall memset(
-        pointer(v)::Ptr{Nothing},
-        Int32(xT)::Cint,
+        pointer(v)::Ptr{Cvoid},
+        Cint(xT)::Cint,
         (length(v) % UInt)::Csize_t
     )::Cvoid
     return v
@@ -252,7 +258,7 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
     GC.@preserve mem begin
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memchr(
-            ptr::Ptr{UInt8},
+            ptr::Ptr{Cvoid},
             (byte % UInt8)::Cint,
             length(mem)::Csize_t,
         )::Ptr{Cvoid}
@@ -311,7 +317,7 @@ function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, U
     GC.@preserve mem begin
         ptr = Ptr{UInt8}(pointer(mem))
         p = @ccall memrchr(
-            ptr::Ptr{UInt8},
+            ptr::Ptr{Cvoid},
             (byte % UInt8)::Cint,
             length(mem)::Csize_t,
         )::Ptr{Cvoid}
@@ -338,7 +344,7 @@ function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
         bptr = Ptr{Nothing}(pointer(b))
-        y = @ccall memcmp(aptr::Ptr{Nothing}, bptr::Ptr{Nothing}, nbytes::Csize_t)::Cint
+        y = @ccall memcmp(aptr::Ptr{Cvoid}, bptr::Ptr{Cvoid}, nbytes::Csize_t)::Cint
     end
     return iszero(y)
 end
@@ -349,9 +355,9 @@ function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
             aptr = Ptr{Nothing}(pointer(a))
             bptr = Ptr{Nothing}(pointer(b))
             @ccall memcmp(
-                aptr::Ptr{Nothing},
-                bptr::Ptr{Nothing},
-                min(length(a), length(b))::Int,
+                aptr::Ptr{Cvoid},
+                bptr::Ptr{Cvoid},
+                min(length(a), length(b))::Csize_t,
             )::Cint
         end
     else
@@ -518,7 +524,8 @@ function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
     # Early return here to avoid division by zero: Size sz is statically known,
     # this will be compiled away
     iszero(sz) && return (unsafe_new_memoryview(M, v.ref, 0), v)
-    unaligned_bytes = ((alignment - (UInt(pointer(v)) & mask)) & mask)
+    ptr_int = GC.@preserve v UInt(pointer(v))
+    unaligned_bytes = ((alignment - (ptr_int & mask)) & mask)
     n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
     return @inbounds split_at(v, n_elements + 1)
 end

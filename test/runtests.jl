@@ -436,6 +436,21 @@ end
         v2 = rand(Int, 4)
         unsafe_copyto!(MemoryView(v1), MemoryView(v2))
         @test v2 == v1
+
+        # 5-argument copyto! should also stay on LightBoundsError rather than
+        # falling back to Base's BoundsError-based array path.
+        mem = MemoryView([1, 2, 3])
+        @test_throws LightBoundsError copyto!(mem, UInt(1), mem, UInt(4), UInt(1))
+        @test_throws LightBoundsError copyto!(mem, 4, mem, 1, 1)
+        @test_throws LightBoundsError copyto!(mem, 1, mem, 1, 4)
+
+        mem = MemoryView([1, 2, 3, 4])
+        @test copyto!(mem, 2, mem, 3, 2) == [3, 4]
+        @test mem == [1, 3, 4, 4]
+
+        mem = MemoryView([1, 2, 3, 4])
+        @test copyto!(mem, Int32(1), mem, Int32(3), Int32(2)) == [3, 4]
+        @test mem == [3, 4, 3, 4]
     end
 
     @testset "Reverse and reverse!" begin

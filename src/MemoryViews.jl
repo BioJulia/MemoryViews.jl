@@ -31,7 +31,10 @@ struct Immutable end
 """
     MemoryView{T, M} <: DenseVector{T}
 
-View into a `Memory{T}`.
+`MemoryView` is the common representation of dense, contiguous, Julia-owned
+data. `String`, `Vector`, `Memory` and other memory-backed types should have
+a fast `MemoryView` constructor.
+
 Construct from memory-backed values `x` with `MemoryView(x)`.
 
 `MemoryView`s are guaranteed to point to contiguous, valid CPU memory,
@@ -102,9 +105,11 @@ Create a mutable memory view from its parts.
 * All indices `i in 1:len` are valid for `ref` (i.e. `memoryref(ref, i)` would
   not throw)
 * If `ref` is derived from immutable memory, it is the caller's responsibility
-  to ensure that mutating the memory does not result in undefined behaviour.
+  to ensure that the resulting view is not mutated.
   For example, `ref` may be derived from a `String`, and mutating `String`s in
   Julia may result in undefined behaviour.
+  In these cases, the caller may convert to `ImmutableMemoryView` immediately
+  after calling this function.
 
 # Examples
 ```jldoctest

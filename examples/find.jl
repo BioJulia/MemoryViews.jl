@@ -74,7 +74,7 @@ function find_next_byte(needle::UInt8, haystack::ImmutableMemoryView{UInt8}, i::
     ulen = len % UInt
     GC.@preserve haystack begin
         ptr = pointer(haystack, i)
-        p = @ccall memchr(ptr::Ptr{UInt8}, needle::UInt8, ulen::UInt)::Ptr{Nothing}
+        p = @ccall memchr(ptr::Ptr{Cvoid}, needle::Cint, ulen::Csize_t)::Ptr{Cvoid}
     end
     return p == C_NULL ? nothing : (p - ptr + i) % Int
 end
