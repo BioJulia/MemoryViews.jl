@@ -134,7 +134,7 @@ end
 Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
 except if `x` is empty, where it may point to one element past the end.
 """
-Base.memoryref(x::MemoryView) = x.ref
+Base.memoryref(@nospecialize(x::MemoryView)) = x.ref
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
