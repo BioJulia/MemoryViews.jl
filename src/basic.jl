@@ -9,13 +9,13 @@ end
 # The parent method for memoryref was added in 1.12. In versions before that,
 # it can be accessed by reaching into internals.
 @static if VERSION < v"1.12.0-DEV.966"
-    Base.parent(v::MemoryView) = v.ref.mem
+    Base.parent(@nospecialize(v::MemoryView)) = v.ref.mem
 else
-    Base.parent(v::MemoryView) = parent(v.ref)
+    Base.parent(@nospecialize(v::MemoryView)) = parent(v.ref)
 end
 
-Base.size(v::MemoryView) = (v.len,)
-Base.IndexStyle(::Type{<:MemoryView}) = Base.IndexLinear()
+Base.size(@nospecialize(v::MemoryView)) = (v.len,)
+Base.IndexStyle(@nospecialize(T::Type{<:MemoryView})) = Base.IndexLinear()
 
 function Base.iterate(x::MemoryView, i::Int = 1)
     ((i - 1) % UInt) < (length(x) % UInt) || return nothing
@@ -41,7 +41,7 @@ function Base.copy(x::MemoryView{T, M}) where {T, M}
     return unsafe_new_memoryview(M, memoryref(newmem), x.len)
 end
 
-function Base.checkbounds(v::MemoryView, is...)
+function Base.checkbounds(@nospecialize(v::MemoryView), is...)
     checkbounds_lightboundserror(v, is...)
 end
 
@@ -69,10 +69,10 @@ Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
-Base.strides(::MemoryView) = (1,)
+Base.strides(@nospecialize(::MemoryView)) = (1,)
 
 # For two distinct element types, they can't alias
-Base.mightalias(::MemoryView, ::MemoryView) = false
+Base.mightalias(@nospecialize(::MemoryView), @nospecialize(::MemoryView)) = false
 
 function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
     (isempty(a) | isempty(b)) && return false
@@ -126,7 +126,7 @@ function Base.getindex(v::MemoryView{T, M}, idx::Base.OneTo) where {T, M}
     return unsafe_new_memoryview(M, v.ref, last(idx))
 end
 
-Base.getindex(v::MemoryView, ::Colon) = v
+Base.getindex(@nospecialize(v::MemoryView), ::Colon) = v
 Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[idx]
 
 # Efficient way to get `mem[1:include_last]`.
@@ -398,9 +398,9 @@ end
 function Iterators.reverse(mem::MemoryView{T}) where {T}
     return ReverseMemoryView{T}(ImmutableMemoryView(mem))
 end
-Iterators.reverse(x::ReverseMemoryView) = x.mem
+Iterators.reverse(@nospecialize(x::ReverseMemoryView)) = x.mem
 
-Base.length(x::ReverseMemoryView) = length(x.mem)
+Base.length(@nospecialize(x::ReverseMemoryView)) = length(x.mem)
 Base.eltype(::Type{ReverseMemoryView{T}}) where {T} = T
 
 function Base.iterate(x::ReverseMemoryView, state = length(x))

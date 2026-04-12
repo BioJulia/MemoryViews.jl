@@ -1,4 +1,4 @@
-MemoryView(v::MemoryView) = v
+MemoryView(@nospecialize(v::MemoryView)) = v
 
 # Array and Memory
 # Array with more than 1 dimension is not equal to the view, since they have different axes
