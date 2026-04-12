@@ -107,6 +107,20 @@ end
     @test !Base.mightalias(v1, v2)
     @test Base.mightalias(MemoryView(v1)[2:2], v1)
     @test Base.mightalias(view(v1, 2:3), MemoryView(v1))
+
+    # Different element types can never alias
+    @test !Base.mightalias(MemoryView(Int[1, 2]), MemoryView(UInt[1, 2]))
+    @test !Base.mightalias(MemoryView(UInt8[1]), MemoryView(Int8[1]))
+    @test !Base.mightalias(MemoryView(Float32[1.0]), MemoryView(Int32[1]))
+    @test !Base.mightalias(ImmutableMemoryView(Int[1]), MemoryView(UInt[1]))
+
+    # Empty views of the same type never alias
+    m1 = MemoryView(Int[])
+    m2 = MemoryView([1, 2, 3])
+    @test !Base.mightalias(m1, m2)
+    @test !Base.mightalias(m2, m1)
+    @test !Base.mightalias(m1, m1)
+    @test !Base.mightalias(m2[1:0], m2)
 end
 
 @testset "Pointer" begin
@@ -119,6 +133,15 @@ end
     GC.@preserve v mem begin
         @test pointer(v) === pointer(ImmutableMemoryView(v))
     end
+end
+
+@testset "Array interface" begin
+    for mem in Any[MemoryView([1, 2, 3]), MemoryView("abc"), MemoryView(Float32[1.0])]
+        @test strides(mem) === (1,)
+        @test IndexStyle(typeof(mem)) === Base.IndexLinear()
+        @test Base.elsize(typeof(mem)) === Base.elsize(typeof(parent(mem)))
+    end
+    @test strides(MemoryView(Int[])) === (1,)
 end
 
 # Span of views
@@ -618,6 +641,41 @@ end
             @test findnext(==(0x04), mem, 1) == 2
             @test findnext(==(0x04), mem, 3) === nothing
         end
+    end
+
+    @testset "Cmp same ref fast path" begin
+        v = UInt8[3, 1, 4, 1, 5]
+        m = MemoryView(v)
+        # Same ref, same length
+        @test cmp(m, m) == 0
+        # Same ref, different length (slices share the ref)
+        @test cmp(m[1:3], m[1:5]) == -1
+        @test cmp(m[1:5], m[1:3]) == 1
+    end
+
+    @testset "Equality with singleton eltypes" begin
+        m1 = MemoryView(fill(nothing, 3))
+        m2 = MemoryView(fill(nothing, 3))
+        @test m1 == m2
+        m2 = MemoryView(fill(nothing, 2))
+        @test m1 != m2
+    end
+
+    @testset "Slicing preserves mutability" begin
+        mut = MemoryView([1, 2, 3, 4, 5])
+        imm = ImmutableMemoryView([1, 2, 3, 4, 5])
+        for idx in Any[2:4, UInt(2):UInt(4), Base.OneTo(3), :]
+            @test mut[idx] isa MutableMemoryView{Int}
+            @test imm[idx] isa ImmutableMemoryView{Int}
+        end
+    end
+
+    @testset "Find on split results" begin
+        mem = MemoryView(UInt8[1, 0, 2, 0, 3])
+        (_, rest) = split_first(mem)
+        @test findfirst(iszero, rest) == 1
+        (head, _) = split_at(mem, 4)
+        @test findlast(iszero, head) == 2
     end
 end
 
