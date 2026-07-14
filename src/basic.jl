@@ -67,9 +67,16 @@ Base.empty(::Type{<:MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, m
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
-Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
-Base.strides(@nospecialize(::MemoryView)) = (1,)
+@static if isdefined(Base, :is_strided)
+    Base.is_contiguous(::Type{<:MemoryView}) = true
+    Base.is_ptr_loadable(::Type{<:MemoryView}) = true
+    Base.is_ptr_storable(::Type{<:MutableMemoryView}) = true
+else
+    # Base fallbacks handle these two methods if is_contiguous = true
+    Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
+    Base.strides(@nospecialize(::MemoryView)) = (1,)
+end
 
 # For two distinct element types, they can't alias
 Base.mightalias(@nospecialize(::MemoryView), @nospecialize(::MemoryView)) = false
