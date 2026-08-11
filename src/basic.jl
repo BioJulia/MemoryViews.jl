@@ -132,10 +132,10 @@ Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[id
 # Efficient way to get `mem[1:include_last]`.
 # include_last must be in 0:length(mem)
 """
-    truncate(v::MemoryView, to::Integer)
+    truncate(v::MemoryView, to::Integer)::MemoryView
 
 Creates a new memory view from the beginning of `v`, and up to and including
-the index `to`
+the index `to`. Returns the same type as the input `v`.
 Equivalent to `v[1:to]`, but may be more efficient.
 
 ```jldoctest
