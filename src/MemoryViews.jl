@@ -12,10 +12,9 @@ export MemoryView,
     split_first,
     split_last,
     split_at,
-    split_unaligned,
-    truncate
+    split_unaligned
 
-public Mutable, Immutable, DelimitedIterator
+public Mutable, Immutable, DelimitedIterator, truncate
 
 using LightBoundsErrors: checkbounds_lightboundserror, throw_lightboundserror
 
