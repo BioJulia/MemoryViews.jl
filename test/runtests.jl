@@ -518,6 +518,27 @@ end
         @test parent(ImmutableMemoryView(mem)) === mem
     end
 
+    @testset "Truncate" begin
+        for v in Any[
+                MemoryView([8, 9, 3, 2]),
+                ImmutableMemoryView([8, 9, 3, 2]),
+                MemoryView([8, 9, 3, 2])[2:end],
+            ]
+            for to in 0:length(v)
+                truncated = MemoryViews.truncate(v, to)
+                @test truncated == v[1:to]
+                @test typeof(truncated) === typeof(v)
+            end
+            @test_throws LightBoundsError MemoryViews.truncate(v, -1)
+            @test_throws LightBoundsError MemoryViews.truncate(v, length(v) + 1)
+        end
+
+        v = MemoryView([8, 9, 3, 2])
+        @test MemoryViews.truncate(v, UInt(2)) == v[1:2]
+        MemoryViews.truncate(v, 2)[2] = 10
+        @test v == [8, 10, 3, 2]
+    end
+
     @testset "Split first and last and at" begin
         for mem in Any[
                 MemoryView(b"abcde"),

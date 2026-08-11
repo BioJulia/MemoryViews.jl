@@ -4,6 +4,12 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.4.2
+* Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
+
+## 0.4.1
+Various fixes and optimizations.
+
 ## 0.4.0
 ### Breaking changes
 * Removed the `Unsafe` trait type:
