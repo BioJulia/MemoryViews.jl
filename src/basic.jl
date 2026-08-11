@@ -131,6 +131,22 @@ Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[id
 
 # Efficient way to get `mem[1:include_last]`.
 # include_last must be in 0:length(mem)
+"""
+    truncate(v::MemoryView, to::Integer)
+
+Creates a new memory view from the beginning of `v`, and up to and including
+the index `to`
+Equivalent to `v[1:to]`, but may be more efficient.
+
+```jldoctest
+julia> v = MemoryView([8, 9, 3, 2]);
+
+julia> v2 = MemoryViews.truncate(v, 3);
+
+julia> v[1:3] === v2
+true
+```
+"""
 function truncate(mem::MemoryView{T, M}, include_last::Integer) where {T, M}
     lst = Int(include_last)::Int
     @boundscheck if (lst % UInt) > length(mem) % UInt

@@ -12,7 +12,8 @@ export MemoryView,
     split_first,
     split_last,
     split_at,
-    split_unaligned
+    split_unaligned,
+    truncate
 
 public Mutable, Immutable, DelimitedIterator
 
