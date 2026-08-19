@@ -63,7 +63,7 @@ function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
     return unsafe_new_memoryview(M, memoryref(Memory{T2}()), 0)
 end
 
-Base.empty(::Type{<:MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
+Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
 Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
