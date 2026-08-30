@@ -129,3 +129,32 @@ println(mem3[1])
 3
 1
 ```
+
+### `RefVector` for backing storage
+The package also provides `RefVector{T}`, a mutable `DenseVector{T}` that stores
+only a `MemoryRef{T}`.
+It differs from `MutableMemoryView{T}` in that its length is always from the ref and to the end of the underlying memory.
+Furthermore, the length is not stored inline, but inside the `Memory` and thus behind a pointer indirection.
+This makes the type one word smaller than `MemoryView` at the cost of less efficient length queries.
+
+The type is intended to act as a backing type for wrappers which carry their own length information.
+For example, we could have a type like:
+```julia
+struct MyArray{T, N}
+    ref::RefVector{T}
+    size::NTuple{N, T}
+end
+```
+Here, using a `RefVector` saves one word in size, and the slower access to its length does not matter,
+because `MyArray` would do the boundschecking and forward to the `RefVector` with `@inbounds`, such
+that its length need not be queried.
+
+```jldoctest; output=false
+memory = Memory{Int}(undef, 4)
+refvector = RefVector(memoryref(memory))
+@assert length(refvector) == 4
+@assert sizeof(typeof(refvector)) + sizeof(Int) == sizeof(typeof(MemoryView(memory)))
+
+# output
+
+```

@@ -1,4 +1,4 @@
-function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
+function Base.setindex!(v::Union{MutableMemoryView{T}, RefVector{T}}, x, i::Int) where {T}
     @boundscheck checkbounds(v, i)
     xT = x isa T ? x : convert(T, x)::T
     ref = @inbounds memoryref(v.ref, i)
@@ -10,25 +10,37 @@ end
 # it can be accessed by reaching into internals.
 @static if VERSION < v"1.12.0-DEV.966"
     Base.parent(@nospecialize(v::MemoryView)) = v.ref.mem
+    Base.parent(@nospecialize(v::RefVector)) = v.ref.mem
 else
     Base.parent(@nospecialize(v::MemoryView)) = parent(v.ref)
+    Base.parent(@nospecialize(v::RefVector)) = parent(v.ref)
 end
 
 Base.size(@nospecialize(v::MemoryView)) = (v.len,)
+Base.size(@nospecialize(v::RefVector)) = (length(v),)
 Base.IndexStyle(@nospecialize(T::Type{<:MemoryView})) = Base.IndexLinear()
+Base.IndexStyle(@nospecialize(T::Type{<:RefVector})) = Base.IndexLinear()
 
-function Base.iterate(x::MemoryView, i::Int = 1)
+function Base.iterate(x::Union{MemoryView, RefVector}, i::Int = 1)
     ((i - 1) % UInt) < (length(x) % UInt) || return nothing
     return (@inbounds x[i], i + 1)
 end
 
 # Base.memoryindex exists in Julia 1.13 onwards.
 @static if VERSION < v"1.13.0-DEV.1289"
+    function Base.length(@nospecialize(v::RefVector))
+        return length(parent(v)) - Core.memoryrefoffset(v.ref) + 1
+    end
+
     function Base.parentindices(x::MemoryView)
         start = Core.memoryrefoffset(x.ref)
         return (start:(start + length(x) - 1),)
     end
 else
+    function Base.length(@nospecialize(v::RefVector))
+        return length(parent(v)) - Base.memoryindex(v.ref) + 1
+    end
+
     function Base.parentindices(x::MemoryView)
         start = Base.memoryindex(x.ref)
         return (start:(start + length(x) - 1),)
@@ -41,11 +53,16 @@ function Base.copy(x::MemoryView{T, M}) where {T, M}
     return unsafe_new_memoryview(M, memoryref(newmem), x.len)
 end
 
-function Base.checkbounds(@nospecialize(v::MemoryView), is...)
+function Base.copy(x::RefVector)
+    mem = copy(MemoryView(x))
+    return RefVector(mem.ref)
+end
+
+function Base.checkbounds(@nospecialize(v::Union{MemoryView, RefVector}), is...)
     checkbounds_lightboundserror(v, is...)
 end
 
-function Base.getindex(v::MemoryView, i::Integer)
+function Base.getindex(v::Union{MemoryView, RefVector}, i::Integer)
     @boundscheck checkbounds(v, i)
     ref = @inbounds memoryref(v.ref, i)
     return @inbounds ref[]
@@ -59,22 +76,43 @@ function Base.similar(::MemoryView{T1, M}, ::Type{T2}, dims::Tuple{Int}) where {
     return MemoryView(memory)
 end
 
+function Base.similar(::RefVector, ::Type{T}, dims::Tuple{Int}) where {T}
+    return RefVector{T}(undef, only(dims))
+end
+
 function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
     return unsafe_new_memoryview(M, memoryref(Memory{T2}()), 0)
 end
 
+Base.empty(::RefVector, ::Type{T}) where {T} = RefVector{T}(undef, 0)
+
 Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
+Base.empty(::Type{RefVector{T}}) where {T} = RefVector{T}(undef, 0)
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
+Base.pointer(x::RefVector{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
+Base.unsafe_convert(::Type{Ptr{T}}, v::RefVector{T}) where {T} = pointer(v)
 Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
+Base.cconvert(::Type{<:Ptr{T}}, v::RefVector{T}) where {T} = v.ref
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
+Base.elsize(::Type{<:RefVector{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
+Base.sizeof(x::RefVector) = Base.elsize(typeof(x)) * length(x)
 Base.strides(@nospecialize(::MemoryView)) = (1,)
+Base.strides(@nospecialize(::RefVector)) = (1,)
 
 # For two distinct element types, they can't alias
-Base.mightalias(@nospecialize(::MemoryView), @nospecialize(::MemoryView)) = false
+function Base.mightalias(
+        @nospecialize(a::Union{MemoryView, RefVector}),
+        @nospecialize(b::Union{MemoryView, RefVector}),
+    )
+    return false
+end
 
-function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
+function Base.mightalias(
+        a::Union{MemoryView{T}, RefVector{T}},
+        b::Union{MemoryView{T}, RefVector{T}},
+    ) where {T}
     (isempty(a) | isempty(b)) && return false
     # We can't compare the underlying Memory with === to add a fast path here,
     # because users can create aliasing, but distinct Memory using unsafe_wrap.
@@ -94,11 +132,11 @@ end
 # views from strings implicitly, since that currently allocates.
 const KNOWN_MEM_BACKED = Union{Array, Memory, ContiguousSubArray}
 
-function Base.mightalias(a::MemoryView, b::KNOWN_MEM_BACKED)
+function Base.mightalias(a::Union{MemoryView, RefVector}, b::KNOWN_MEM_BACKED)
     return Base.mightalias(a, ImmutableMemoryView(b))
 end
 
-function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryView)
+function Base.mightalias(a::KNOWN_MEM_BACKED, b::Union{MemoryView, RefVector})
     return Base.mightalias(ImmutableMemoryView(a), b)
 end
 
@@ -178,31 +216,48 @@ function truncate_start(mem::MemoryView{T, M}, from::Integer) where {T, M}
     return unsafe_new_memoryview(M, newref, length(mem) - frm + 1)
 end
 
-function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.unsafe_copyto!(
+        dst::Union{MutableMemoryView{T}, RefVector{T}},
+        src::Union{MemoryView{T}, RefVector{T}},
+    ) where {T}
     iszero(length(src)) && return dst
     @inbounds unsafe_copyto!(dst.ref, src.ref, length(src) % UInt)
     return dst
 end
 
-function Base.copy!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.copy!(
+        dst::Union{MutableMemoryView{T}, RefVector{T}},
+        src::Union{MemoryView{T}, RefVector{T}},
+    ) where {T}
     @boundscheck length(dst) == length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
-function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.copyto!(
+        dst::Union{MutableMemoryView{T}, RefVector{T}},
+        src::Union{MemoryView{T}, RefVector{T}},
+    ) where {T}
     @boundscheck length(dst) ≥ length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
 # This function is kind of bad API, and users should not use it. However, without this overload,
 # the fallback definition is used instead which is even worse.
-function Base.copyto!(dst::MutableMemoryView, di::Integer, src::MemoryView{T}, si::Integer, N::Integer) where {T}
+function Base.copyto!(
+        dst::Union{MutableMemoryView, RefVector},
+        di::Integer,
+        src::Union{MemoryView, RefVector},
+        si::Integer,
+        N::Integer,
+    )
     di = Int(di)::Int
     si = Int(si)::Int
     N = Int(N)::Int
-    dst = dst[di:(di + N - 1)]
-    src = src[si:(si + N - 1)]
-    return copyto!(dst, src)
+    @boundscheck N < 0 && throw(ArgumentError("Number of elements to copy must be non-negative."))
+    dstview = MemoryView(dst)[di:(di + N - 1)]
+    srcview = MemoryView(src)[si:(si + N - 1)]
+    copyto!(dstview, srcview)
+    return dst
 end
 
 function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
@@ -216,6 +271,11 @@ function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
     return v
 end
 
+function Base.fill!(v::RefVector{UInt8}, x::Integer)
+    fill!(MemoryView(v), x)
+    return v
+end
+
 # Optimised methods that don't boundscheck
 function Base.findnext(p::Function, mem::MemoryView, start::Integer)
     i = Int(start)::Int
@@ -225,6 +285,34 @@ function Base.findnext(p::Function, mem::MemoryView, start::Integer)
         i += 1
     end
     return nothing
+end
+
+function Base.findnext(p::Function, mem::RefVector, start::Integer)
+    return findnext(p, MemoryView(mem), start)
+end
+
+function Base.findnext(
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        mem::RefVector{UInt8},
+        start::Integer,
+    )
+    return findnext(p, MemoryView(mem), start)
+end
+
+function Base.findnext(
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+        mem::RefVector{Int8},
+        start::Integer,
+    )
+    return findnext(p, MemoryView(mem), start)
+end
+
+function Base.findnext(
+        ::typeof(iszero),
+        mem::RefVector{T},
+        start::Integer,
+    ) where {T <: Union{UInt8, Int8}}
+    return findnext(iszero, MemoryView(mem), start)
 end
 
 # The following two methods could be collapsed, but they aren't for two reasons:
@@ -292,6 +380,34 @@ function Base.findprev(p::Function, mem::MemoryView, start::Integer)
     return nothing
 end
 
+function Base.findprev(p::Function, mem::RefVector, start::Integer)
+    return findprev(p, MemoryView(mem), start)
+end
+
+function Base.findprev(
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        mem::RefVector{UInt8},
+        start::Integer,
+    )
+    return findprev(p, MemoryView(mem), start)
+end
+
+function Base.findprev(
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
+        mem::RefVector{Int8},
+        start::Integer,
+    )
+    return findprev(p, MemoryView(mem), start)
+end
+
+function Base.findprev(
+        ::typeof(iszero),
+        mem::RefVector{T},
+        start::Integer,
+    ) where {T <: Union{UInt8, Int8}}
+    return findprev(iszero, MemoryView(mem), start)
+end
+
 function Base.findprev(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
         mem::MemoryView{UInt8},
@@ -344,7 +460,10 @@ end
 const BitsTypes =
     (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Char)
 const Bits = Union{BitsTypes...}
-const BitMemory = Union{map(T -> MemoryView{T}, BitsTypes)...}
+const BitMemory = Union{
+    map(T -> MemoryView{T}, BitsTypes)...,
+    map(T -> RefVector{T}, BitsTypes)...,
+}
 
 # This dispatch makes sure that, if they have the same element bitstype, but the views
 # are of different types due to mutability, we still dispatch to the correct methpd.
@@ -353,6 +472,24 @@ Base.:(==)(a::MutableMemoryView, b::ImmutableMemoryView) = ImmutableMemoryView(a
 
 # Make sure to only dispatch if it's the exact same memory type.
 function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
+    return bitsequal(a, b)
+end
+
+function Base.:(==)(a::RefVector{T}, b::MemoryView{T}) where {T <: Bits}
+    if !isbitstype(T)
+        return invoke(==, Tuple{AbstractArray, AbstractArray}, a, b)
+    end
+    return bitsequal(a, b)
+end
+
+function Base.:(==)(a::MemoryView{T}, b::RefVector{T}) where {T <: Bits}
+    if !isbitstype(T)
+        return invoke(==, Tuple{AbstractArray, AbstractArray}, a, b)
+    end
+    return bitsequal(a, b)
+end
+
+function bitsequal(a, b)
     length(a) == length(b) || return false
     (eltype(a) === Union{} || Base.issingletontype(eltype(a))) && return true
     a.ref === b.ref && return true
@@ -365,7 +502,10 @@ function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
     return iszero(y)
 end
 
-function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
+function Base.cmp(
+        a::Union{MemoryView{UInt8}, RefVector{UInt8}},
+        b::Union{MemoryView{UInt8}, RefVector{UInt8}},
+    )
     y = if a.ref !== b.ref
         GC.@preserve a b begin
             aptr = Ptr{Nothing}(pointer(a))
@@ -393,6 +533,11 @@ function Base.reverse!(mem::MutableMemoryView)
     return mem
 end
 
+function Base.reverse!(mem::RefVector)
+    reverse!(MemoryView(mem))
+    return mem
+end
+
 function Base.reverse(mem::MemoryView)
     cp = similar(mem)
     stop = length(cp) + 1
@@ -404,6 +549,11 @@ function Base.reverse(mem::MemoryView)
     else
         ImmutableMemoryView(cp)
     end
+end
+
+function Base.reverse(mem::RefVector)
+    reversed = reverse(MemoryView(mem))
+    return RefVector(reversed.ref)
 end
 
 struct ReverseMemoryView{T}

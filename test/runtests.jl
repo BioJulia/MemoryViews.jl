@@ -73,6 +73,236 @@ end
     @test_throws TypeError ImmutableMemoryView{UInt32}(x)
 end
 
+@testset "RefVector interface" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 3, 5)
+    refvector = RefVector(memoryref(memory))
+
+    @test refvector isa DenseVector{Int}
+    @test fieldnames(typeof(refvector)) == (:ref,)
+    @test fieldtypes(typeof(refvector)) == (MemoryRef{Int},)
+    @test sizeof(typeof(refvector)) == sizeof(MemoryRef{Int})
+    @test parent(refvector) === memory
+    @test memoryref(refvector) === memoryref(memory)
+    @test length(refvector) == 3
+    @test size(refvector) == (3,)
+    @test axes(refvector) == (Base.OneTo(3),)
+    @test IndexStyle(typeof(refvector)) === Base.IndexLinear()
+    @test strides(refvector) == (1,)
+    @test collect(refvector) == [2, 3, 5]
+    @test sizeof(refvector) == 3 * sizeof(Int)
+    @test sizeof(typeof(refvector)) + sizeof(Int) == sizeof(MutableMemoryView{Int})
+
+    refvector[2] = 7
+    @test memory[2] == 7
+    @test_throws LightBoundsError refvector[0]
+    @test_throws LightBoundsError refvector[4] = 11
+
+    offsetrefvector = RefVector(@inbounds memoryref(memory, 2))
+    @test length(offsetrefvector) == 2
+    @test size(offsetrefvector) == (2,)
+    @test collect(offsetrefvector) == [7, 5]
+    @test MemoryView(offsetrefvector) == [7, 5]
+    @test_throws LightBoundsError offsetrefvector[3]
+end
+
+@testset "RefVector pointers" begin
+    memory = Memory{Int}(undef, 3)
+    refvector = RefVector(memoryref(memory))
+    GC.@preserve refvector begin
+        @test pointer(refvector) == pointer(memory)
+        @test Base.unsafe_convert(Ptr{Int}, refvector) == pointer(memory)
+        @test Base.cconvert(Ptr{Int}, refvector) === memoryref(memory)
+    end
+end
+
+@testset "RefVector construction" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 7, 5)
+    refvector = RefVector(memoryref(memory))
+    memview = MemoryView{Int}(refvector, 2)
+    @test memview isa MutableMemoryView{Int}
+    @test parent(memview) === memory
+    @test memview == [2, 7]
+    @test MemoryView(refvector) == refvector
+    @test ImmutableMemoryView(refvector) isa ImmutableMemoryView{Int}
+    @test MemoryKind(RefVector{Int}) == IsMemory(MutableMemoryView{Int})
+    @test_throws LightBoundsError MemoryView{Int}(refvector, -1)
+    @test_throws LightBoundsError MemoryView{Int}(refvector, 4)
+
+    allocated = RefVector{Int}(undef, 3)
+    @test allocated isa RefVector{Int}
+    @test parent(allocated) isa Memory{Int}
+    @test length(allocated) == 3
+end
+
+@testset "RefVector similar, empty and broadcasting" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 3, 5)
+    refvector = RefVector(memoryref(memory))
+
+    similarvector = similar(refvector)
+    @test similarvector isa RefVector{Int}
+    @test length(similarvector) == 3
+    similarbytes = similar(refvector, UInt8, (2,))
+    @test similarbytes isa RefVector{UInt8}
+    @test length(similarbytes) == 2
+
+    @test empty(refvector) isa RefVector{Int}
+    @test isempty(empty(refvector))
+    @test empty(RefVector{UInt8}) isa RefVector{UInt8}
+    @test isempty(empty(RefVector{UInt8}))
+
+    broadcasted = refvector .+ 1
+    @test broadcasted isa Vector{Int}
+    @test broadcasted == [3, 4, 6]
+    mixed = [1, 2, 3] .+ refvector
+    @test mixed isa Vector{Int}
+    @test mixed == [3, 5, 8]
+    refvector .= refvector .+ 1
+    @test refvector == [3, 4, 6]
+    matrixbroadcast = reshape([10, 20, 30], 1, :) .+ refvector
+    @test matrixbroadcast isa Matrix{Int}
+    @test matrixbroadcast == [13 23 33; 14 24 34; 16 26 36]
+end
+
+@testset "RefVector aliasing" begin
+    memory = Memory{Int}(undef, 3)
+    refvector = RefVector(memoryref(memory))
+    memview = MemoryView{Int}(refvector, 2)
+    @test Base.mightalias(refvector, memview)
+    @test Base.mightalias(memview, refvector)
+    @test Base.mightalias(refvector, memory)
+    @test Base.mightalias(memory, refvector)
+    @test !Base.mightalias(refvector, RefVector(memoryref(Memory{Int}(undef, 3))))
+    @test !Base.mightalias(refvector, RefVector(memoryref(Memory{UInt}(undef, 3))))
+end
+
+@testset "RefVector copy and reverse" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 3, 5, 7)
+    refvector = RefVector(memoryref(memory))
+
+    copied = copy(refvector)
+    @test copied isa RefVector{Int}
+    @test copied == refvector
+    @test parent(copied) !== parent(refvector)
+    copied[1] = 11
+    @test refvector == [2, 3, 5, 7]
+
+    reversed = reverse(refvector)
+    @test reversed isa RefVector{Int}
+    @test reversed == [7, 5, 3, 2]
+    @test parent(reversed) !== parent(refvector)
+    @test reverse!(refvector) === refvector
+    @test refvector == [7, 5, 3, 2]
+end
+
+@testset "RefVector fill!" begin
+    memory = Memory{UInt8}(undef, 5)
+    refvector = RefVector(memoryref(memory))
+    @test fill!(refvector, 7) === refvector
+    @test refvector == fill(0x07, 5)
+    @test_throws InexactError fill!(refvector, 256)
+
+    intmemory = Memory{Int}(undef, 3)
+    intrefvector = RefVector(memoryref(intmemory))
+    @test fill!(intrefvector, 13) === intrefvector
+    @test intrefvector == fill(13, 3)
+end
+
+@testset "RefVector findnext" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 4, 5, 6)
+    refvector = RefVector(memoryref(memory))
+    @test findnext(isodd, refvector, 2) == 3
+    @test findnext(isodd, refvector, 4) === nothing
+    @test_throws LightBoundsError findnext(isodd, refvector, 0)
+
+    bytememory = Memory{UInt8}(undef, 6)
+    bytememory .= (6, 2, 7, 0, 2, 1)
+    byterefvector = RefVector(memoryref(bytememory))
+    @test findnext(==(0x02), byterefvector, 3) == 5
+    @test findnext(isequal(0x07), byterefvector, 1) == 3
+    @test findnext(iszero, byterefvector, 1) == 4
+    @test findnext(==(0x09), byterefvector, 1) === nothing
+end
+
+@testset "RefVector findprev" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 4, 5, 6)
+    refvector = RefVector(memoryref(memory))
+    @test findprev(isodd, refvector, 4) == 3
+    @test findprev(isodd, refvector, 2) === nothing
+    @test_throws LightBoundsError findprev(isodd, refvector, 5)
+
+    bytememory = Memory{UInt8}(undef, 6)
+    bytememory .= (6, 2, 7, 0, 2, 1)
+    byterefvector = RefVector(memoryref(bytememory))
+    @test findprev(==(0x02), byterefvector, 4) == 2
+    @test findprev(isequal(0x07), byterefvector, 6) == 3
+    @test findprev(iszero, byterefvector, 6) == 4
+    @test findprev(==(0x09), byterefvector, 6) === nothing
+end
+
+@testset "RefVector bitstype equality and cmp" begin
+    firstmemory = Memory{UInt8}(undef, 4)
+    firstmemory .= (9, 2, 3, 5)
+    first = RefVector(@inbounds memoryref(firstmemory, 2))
+    secondmemory = Memory{UInt8}(undef, 3)
+    secondmemory .= (2, 3, 5)
+    second = RefVector(memoryref(secondmemory))
+    secondview = MemoryView(secondmemory)
+
+    @test first == second
+    @test first == secondview
+    @test secondview == first
+    @test cmp(first, second) == 0
+    @test cmp(first, MemoryView(UInt8[2, 3, 6])) < 0
+    @test cmp(MemoryView(UInt8[2, 3]), first) < 0
+
+    unionmemory = Memory{Union{Int8, UInt8}}(undef, 2)
+    unionmemory .= (Int8(-1), UInt8(2))
+    unioncopy = copy(unionmemory)
+    @test RefVector(memoryref(unionmemory)) == RefVector(memoryref(unioncopy))
+    unioncopy[2] = UInt8(3)
+    @test RefVector(memoryref(unionmemory)) != RefVector(memoryref(unioncopy))
+end
+
+@testset "RefVector copying" begin
+    sourcememory = Memory{Int}(undef, 3)
+    sourcememory .= (1, 2, 3)
+    source = RefVector(memoryref(sourcememory))
+
+    destmemory = Memory{Int}(undef, 3)
+    destination = RefVector(memoryref(destmemory))
+    @test copy!(destination, source) === destination
+    @test destination == source
+
+    destmemory = Memory{Int}(undef, 4)
+    destmemory .= (0, 0, 0, 9)
+    destination = RefVector(memoryref(destmemory))
+    @test copyto!(destination, source) === destination
+    @test destination == [1, 2, 3, 9]
+
+    @test copy!(MemoryView(destmemory)[1:3], source) == source
+    mixedmemory = Memory{Int}(undef, 3)
+    mixeddestination = RefVector(memoryref(mixedmemory))
+    @test copy!(mixeddestination, MemoryView(sourcememory)) === mixeddestination
+    @test mixeddestination == source
+    @test_throws LightBoundsError copy!(destination, source)
+    @test_throws LightBoundsError copyto!(source, destination)
+
+    memory = Memory{Int}(undef, 4)
+    memory .= (1, 2, 3, 4)
+    refvector = RefVector(memoryref(memory))
+    @test copyto!(refvector, 2, refvector, 3, 2) === refvector
+    @test refvector == [1, 3, 4, 4]
+    @test_throws ArgumentError copyto!(refvector, 1, refvector, 1, -1)
+    @test_throws LightBoundsError copyto!(refvector, 1, refvector, 4, 2)
+    @test_throws LightBoundsError copyto!(refvector, 4, refvector, 1, 2)
+end
+
 @testset "Immutable views are immutable" begin
     mem = MemoryView("abc")
     @test mem isa ImmutableMemoryView{UInt8}
@@ -466,13 +696,14 @@ end
         @test_throws LightBoundsError copyto!(mem, UInt(1), mem, UInt(4), UInt(1))
         @test_throws LightBoundsError copyto!(mem, 4, mem, 1, 1)
         @test_throws LightBoundsError copyto!(mem, 1, mem, 1, 4)
+        @test_throws ArgumentError copyto!(mem, 1, mem, 1, -1)
 
         mem = MemoryView([1, 2, 3, 4])
-        @test copyto!(mem, 2, mem, 3, 2) == [3, 4]
+        @test copyto!(mem, 2, mem, 3, 2) === mem
         @test mem == [1, 3, 4, 4]
 
         mem = MemoryView([1, 2, 3, 4])
-        @test copyto!(mem, Int32(1), mem, Int32(3), Int32(2)) == [3, 4]
+        @test copyto!(mem, Int32(1), mem, Int32(3), Int32(2)) === mem
         @test mem == [3, 4, 3, 4]
     end
 
@@ -953,7 +1184,12 @@ end
 
     for (mem, T) in Any[
             (ImmutableMemoryView("abc"), RMem),
+            (MemoryView(Int32[1, 2]), RMem),
+            (MemoryView(Int8[-1, 0]), RMem),
             (MemoryView([0x01, 0x02]), WMem),
+            (MemoryView(Int8[-1, 0]), WMem),
+            (ImmutableMemoryView(UInt8[0x01, 0x02]), WMem),
+            (MemoryView(b"abc"), WMem),
             (ImmutableMemoryView([0x01, 0x01]), RMem),
         ]
         testview(mem, T(mem), T)
