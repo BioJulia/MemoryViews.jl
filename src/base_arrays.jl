@@ -1,12 +1,12 @@
-Base.Vector(x::MemoryView{T}) where {T} = Vector{T}(x)
+Base.Vector(x::MemoryVector{T}) where {T} = Vector{T}(x)
 
-function Base.Vector{T}(mem::MemoryView{T}) where {T}
+function Base.Vector{T}(mem::MemoryVector{T}) where {T}
     return copyto!(Vector{T}(undef, length(mem)), mem)
 end
 
-Base.Memory(x::MemoryView{T}) where {T} = Memory{T}(x)
+Base.Memory(x::MemoryVector{T}) where {T} = Memory{T}(x)
 
-function Base.Memory{T}(x::MemoryView{T}) where {T}
+function Base.Memory{T}(x::MemoryVector{T}) where {T}
     return if isempty(x)
         Memory{T}()
     else
@@ -14,18 +14,26 @@ function Base.Memory{T}(x::MemoryView{T}) where {T}
     end
 end
 
-function Base.copyto!(A::Union{Memory{T}, Array{T}}, mem::MemoryView{T}) where {T}
+function Base.copyto!(A::Union{Memory{T}, Array{T}}, mem::MemoryVector{T}) where {T}
     copyto!(MemoryView(A), mem)
     return A
 end
 
-function Base.copy!(A::Union{Memory{T}, Array{T}}, mem::MemoryView{T}) where {T}
+function Base.copy!(A::Union{Memory{T}, Array{T}}, mem::MemoryVector{T}) where {T}
     length(A) == length(mem) || resize!(A, length(mem))
     copy!(MemoryView(A), mem)
     return A
 end
 
-function Base.append!(v::Vector{T}, mem::MemoryView{T}) where {T}
+function Base.copyto!(mem::MutableMemoryVector{T}, A::Union{Memory{T}, Array{T}}) where {T}
+    return copyto!(mem, MemoryView(A))
+end
+
+function Base.copy!(mem::MutableMemoryVector{T}, A::Union{Memory{T}, Array{T}}) where {T}
+    return copy!(mem, MemoryView(A))
+end
+
+function Base.append!(v::Vector{T}, mem::MemoryVector{T}) where {T}
     isempty(mem) && return v
     old_len = length(v)
     resize!(v, length(v) + length(mem))

@@ -1,6 +1,7 @@
 module MemoryViews
 
 export MemoryView,
+    RefVector,
     ImmutableMemoryView,
     MutableMemoryView,
     MemoryKind,
@@ -9,6 +10,7 @@ export MemoryView,
     inner,
     split_each,
     unsafe_from_parts,
+    unsafe_refvector,
     split_first,
     split_last,
     split_at,
@@ -95,6 +97,13 @@ end
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 
+# Base.memoryindex exists in Julia 1.13 onwards.
+@static if VERSION < v"1.13.0-DEV.1289"
+    memoryrefindex(ref::MemoryRef) = Core.memoryrefoffset(ref)
+else
+    memoryrefindex(ref::MemoryRef) = Base.memoryindex(ref)
+end
+
 """
     unsafe_from_parts(ref::MemoryRef{T}, len::Int)::MutableMemoryView{T}
 
@@ -127,14 +136,6 @@ julia> view = unsafe_from_parts(ref, 3)
 function unsafe_from_parts(ref::MemoryRef, len::Int)
     return unsafe_new_memoryview(Mutable, ref, len)
 end
-
-"""
-    Base.memoryref(x::MemoryView{T})::MemoryRef{T}
-
-Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
-except if `x` is empty, where it may point to one element past the end.
-"""
-Base.memoryref(@nospecialize(x::MemoryView)) = x.ref
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
@@ -195,7 +196,7 @@ See: [`MemoryKind`](@ref)
 """
 struct IsMemory{T <: MemoryView} <: MemoryKind
     function IsMemory{T}() where {T}
-        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
+        isconcretetype(T) || error("In IsMemory{T}, T must be concrete, got ", string(T))
         return new{T}()
     end
 end
@@ -214,6 +215,7 @@ MemoryKind(::Type) = NotMemory()
 MemoryKind(::Type{Union{}}) = NotMemory()
 MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
+include("refvector.jl")
 include("construction.jl")
 include("basic.jl")
 include("delimited.jl")
