@@ -1,44 +1,5 @@
 # AGENTS.md
-
-This file provides guidance to LLMs when working with code in this repository.
-
-## Project Overview
-
-MemoryViews.jl provides `MemoryView`, a low-level view into `Memory{T}` for Julia ≥ 1.11. It's a `DenseVector{T}` subtype representing a `MemoryRef{T}` + length, with static mutability tracking via type parameter (`Mutable`/`Immutable`). The package also defines the `MemoryKind` trait for dispatch on memory-backed types.
-
-## Commands
-
-```bash
-# Run tests
-JULIA_TEST_FAILFAST=true julia --startup=no --project -e 'using Pkg; Pkg.test()'
-
-# Format code
-runic -i .
-```
-
-When running in test mode, Julia has boundscheck always enabled. When running normally,
-out-of-bounds access in functions marked `@inbounds` is undefined behaviour.
-Set `--check-bounds=yes` to force boundschecking when running experiments.
-
-## Architecture
-
-**Core types** (defined in `src/MemoryViews.jl`):
-- `MemoryView{T, M}` where `M ∈ {Mutable, Immutable}` — the main type
-- `MemoryKind` trait: `IsMemory{T}` / `NotMemory` for dispatch
-
-**Source files**:
-- `construction.jl` — constructors from Array, Memory, String, SubArray, CodeUnits
-- `basic.jl` — indexing, slicing (returns views, not copies), copying, find operations with memchr/memrchr C calls, comparison via memcmp
-- `delimited.jl` — `split_each` delimiter iterator
-- `base_arrays.jl` — Vector/Memory conversion, append
-- `io.jl` — `readbytes!`
-
-**Extensions** (`ext/`): StringViews, FixedSizeArrays, LibDeflate integration.
-
-## Key Patterns
-
-- Slicing creates views into the same memory (no allocation)
-- Performance-critical paths use `@ccall` to libc (`memset`, `memcmp`, `memchr`, `memrchr`) with `GC.@preserve`
-- Version-conditional code for Julia 1.12+ vs 1.13+ (e.g., `Base.memoryindex` for `parentindices`)
-- Trait-based dispatch pattern: define `foo(x)` → `foo(MemoryKind(typeof(x)), x)` → specialized on `IsMemory`/`NotMemory`
-- `@boundscheck`/`@inbounds` used throughout for safe-by-default with opt-in elision
+* Do not use underscores for internal names. Only use underscores in the case a public method immediately forwards to an internal implementation for dispatch reasons; in that case a public function `foo` may forward to `_foo`, and the underscore is used to disambiguate.
+* After changes, format with Runic: Attempt `runic -i .`, and alert the user if Runic is not installed, on your $PATH, or otherwise does not work.
+* Performance: All boundschecking operations needs to have boundschecking in a `@boundscheck` block.
+* Performance: Beware of unnecessary error checks when converting between Int and UInt, even when we know they are impossible (e.g. UInt(length(::Vector)) can never throw because no Vector length can be < 0). Remove these checks by casting with `%`.
