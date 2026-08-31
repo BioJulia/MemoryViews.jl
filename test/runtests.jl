@@ -237,6 +237,11 @@ end
     @test parent(reversed) !== parent(refvector)
     @test reverse!(refvector) === refvector
     @test refvector == [7, 5, 3, 2]
+
+    iterator = Iterators.reverse(refvector)
+    @test iterator isa MemoryViews.ReverseMemoryView{Int}
+    @test collect(iterator) == [2, 3, 5, 7]
+    @test Iterators.reverse(iterator) == refvector
 end
 
 @testset "RefVector fill!" begin

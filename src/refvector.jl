@@ -86,3 +86,5 @@ function Base.reverse(mem::RefVector)
     reversed = reverse(MemoryView(mem))
     return RefVector(reversed.ref)
 end
+
+Iterators.reverse(mem::RefVector) = Iterators.reverse(MemoryView(mem))
