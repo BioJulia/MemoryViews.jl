@@ -1,11 +1,14 @@
 """
     RefVector{T} <: DenseVector{T}
     RefVector{T}(undef, len::Integer)
+    RefVector(memory::Memory{T})
 
 A mutable vector backed by a `MemoryRef{T}`.
 Unlike [`MemoryView`](@ref), a `RefVector` does not store its length inline;
 its length is obtained from the parent `Memory`.
 This makes `RefVector` one word smaller than `MemoryView`.
+
+Constructing from `Memory` aliases its storage.
 
 `RefVector` is useful as a field in wrapper types which store their
 length elsewhere. Such wrappers can perform their own bounds check and access
@@ -36,6 +39,9 @@ function RefVector{T}(::UndefInitializer, len::Integer) where {T}
     return RefVector(memoryref(memory))
 end
 
+RefVector{T}(memory::Memory{T}) where {T} = RefVector(memoryref(memory))
+RefVector(memory::Memory{T}) where {T} = RefVector{T}(memory)
+
 """
     MemoryView{T}(v::RefVector{T}, len::Int)::MutableMemoryView{T}
 
@@ -56,6 +62,13 @@ Base.size(v::RefVector) = (length(v),)
 function Base.length(v::RefVector)
     return length(parent(v)) - memoryrefindex(v.ref) + 1
 end
+
+Base.@propagate_inbounds function Base.getindex(v::RefVector, idx::AbstractUnitRange)
+    return MemoryView(v)[idx]
+end
+
+Base.getindex(v::RefVector, ::Colon) = MemoryView(v)
+Base.@propagate_inbounds Base.view(v::RefVector, idx::AbstractUnitRange) = v[idx]
 
 function Base.copy(x::RefVector)
     mem = copy(MemoryView(x))

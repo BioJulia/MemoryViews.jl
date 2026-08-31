@@ -30,7 +30,7 @@ function Base.iterate(x::MemoryVector, i::Int = 1)
     return (@inbounds x[i], i + 1)
 end
 
-function Base.parentindices(x::MemoryView)
+function Base.parentindices(x::MemoryVector)
     start = memoryrefindex(x.ref)
     return (start:(start + length(x) - 1),)
 end

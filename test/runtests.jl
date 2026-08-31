@@ -101,6 +101,7 @@ end
     offsetrefvector = RefVector(@inbounds memoryref(memory, 2))
     @test length(offsetrefvector) == 2
     @test size(offsetrefvector) == (2,)
+    @test parentindices(offsetrefvector) == (2:3,)
     @test collect(offsetrefvector) == [7, 5]
     @test MemoryView(offsetrefvector) == [7, 5]
     @test_throws LightBoundsError offsetrefvector[3]
@@ -134,6 +135,46 @@ end
     @test allocated isa RefVector{Int}
     @test parent(allocated) isa Memory{Int}
     @test length(allocated) == 3
+
+    frommemory = RefVector(memory)
+    @test frommemory isa RefVector{Int}
+    @test parent(frommemory) === memory
+    frommemory[1] = 11
+    @test memory[1] == 11
+end
+
+@testset "RefVector range indexing and views" begin
+    memory = Memory{Int}(undef, 5)
+    memory .= (2, 3, 5, 7, 11)
+    refvector = RefVector(@inbounds memoryref(memory, 2))
+
+    for idx in Any[2:3, Int32(1):Int32(2), UInt(2):UInt(4), Base.OneTo(3)]
+        result = refvector[idx]
+        @test result isa MutableMemoryView{Int}
+        @test result == collect(refvector)[idx]
+        @test parent(result) === memory
+    end
+
+    rangeview = refvector[2:3]
+    rangeview[1] = 13
+    @test memory[3] == 13
+
+    colonview = refvector[:]
+    @test colonview isa MutableMemoryView{Int}
+    @test memoryref(colonview) === memoryref(refvector)
+    colonview[1] = 17
+    @test memory[2] == 17
+
+    explicitview = view(refvector, 2:3)
+    @test explicitview isa MutableMemoryView{Int}
+    @test explicitview === refvector[2:3]
+    explicitview[2] = 19
+    @test memory[4] == 19
+
+    @test refvector[3:2] isa MutableMemoryView{Int}
+    @test isempty(refvector[3:2])
+    @test_throws LightBoundsError refvector[0:1]
+    @test_throws LightBoundsError view(refvector, 4:5)
 end
 
 @testset "RefVector similar, empty and broadcasting" begin
@@ -1035,6 +1076,12 @@ end
         @test Memory{Int}(v) !== parent(v)
 
         @test isempty(Memory{Int}(v[1:0]))
+
+        refvector = RefVector(Memory{Int}([7, 3, 2]))
+        @test Memory(refvector) isa Memory{Int}
+        @test Memory(refvector) == refvector
+        @test Memory{Int}(refvector) == refvector
+        @test Memory(refvector) !== parent(refvector)
     end
 
     @testset "Vector construction" begin
@@ -1046,6 +1093,11 @@ end
         @test Vector{String}(v) == v
 
         @test isempty(Vector{String}(v[1:0]))
+
+        refvector = RefVector(Memory{String}(["some", "strings"]))
+        @test Vector(refvector) isa Vector{String}
+        @test Vector(refvector) == refvector
+        @test Vector{String}(refvector) == refvector
     end
 
     @testset "Vector/Memory copying" begin
@@ -1062,6 +1114,33 @@ end
         v = Memory{Int}(undef, 3)
         @test copy!(v, m) === v
         @test v == m
+
+        source = RefVector(Memory{Int}([11, 13, 17]))
+
+        arraydestination = zeros(Int, 5)
+        @test copyto!(arraydestination, source) === arraydestination
+        @test arraydestination == [11, 13, 17, 0, 0]
+        @test copy!(arraydestination, source) === arraydestination
+        @test arraydestination == source
+
+        memorydestination = Memory{Int}(undef, 3)
+        @test copyto!(memorydestination, source) === memorydestination
+        @test memorydestination == source
+        @test copy!(memorydestination, source) === memorydestination
+        @test memorydestination == source
+
+        refdestination = RefVector{Int}(undef, 3)
+        arraysource = reshape([19, 23, 29], 1, 3)
+        @test copyto!(refdestination, arraysource) === refdestination
+        @test refdestination == vec(arraysource)
+        @test copy!(refdestination, [31, 37, 41]) === refdestination
+        @test refdestination == [31, 37, 41]
+
+        memorysource = Memory{Int}([43, 47, 53])
+        @test copyto!(refdestination, memorysource) === refdestination
+        @test refdestination == memorysource
+        @test copy!(refdestination, memorysource) === refdestination
+        @test refdestination == memorysource
     end
 
     @testset "Vector append!" begin
