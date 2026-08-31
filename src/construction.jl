@@ -1,12 +1,10 @@
 MemoryView(@nospecialize(v::MemoryView)) = v
-MemoryView(v::RefVector{T}) where {T} = @inbounds MemoryView{T}(v, length(v))
 
 # Array and Memory
 # Array with more than 1 dimension is not equal to the view, since they have different axes
 MemoryKind(::Type{<:Array{T}}) where {T} = NotMemory()
 MemoryKind(::Type{<:Vector{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
-MemoryKind(::Type{<:RefVector{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryView(A::Memory{T}) where {T} = unsafe_new_memoryview(Mutable, memoryref(A), length(A))
 MemoryView(A::Array{T}) where {T} = unsafe_new_memoryview(Mutable, Base.cconvert(Ptr, A), length(A))
 

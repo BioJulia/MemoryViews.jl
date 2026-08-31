@@ -96,39 +96,11 @@ end
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 
-"""
-    RefVector{T} <: DenseVector{T}
-    RefVector{T}(undef, len::Integer)
-
-A mutable vector backed by a `MemoryRef{T}`.
-Unlike [`MemoryView`](@ref), a `RefVector` does not store its length inline;
-its length is obtained from the parent `Memory`.
-This makes `RefVector` one word smaller than `MemoryView`.
-
-`RefVector` is useful as a field in wrapper types which store their
-length elsewhere. Such wrappers can perform their own bounds check and access
-the `RefVector` with `@inbounds`, avoiding the pointer indirection needed to
-load the length of the `RefVector`.
-
-# Examples
-```jldoctest
-julia> v = RefVector(memoryref(fill!(Memory{Int}(undef, 3), 6)));
-3-element RefVector{Int64}:
- 6
- 6
- 6
-
-julia> ref = memoryref(v); typeof(ref) === MemoryRef{Int}
-true
-```
-"""
-struct RefVector{T} <: DenseVector{T}
-    ref::MemoryRef{T}
-end
-
-function RefVector{T}(::UndefInitializer, len::Integer) where {T}
-    memory = Memory{T}(undef, Int(len)::Int)
-    return RefVector(memoryref(memory))
+# Base.memoryindex exists in Julia 1.13 onwards.
+@static if VERSION < v"1.13.0-DEV.1289"
+    memoryrefindex(ref::MemoryRef) = Core.memoryrefoffset(ref)
+else
+    memoryrefindex(ref::MemoryRef) = Base.memoryindex(ref)
 end
 
 """
@@ -162,27 +134,6 @@ julia> view = unsafe_from_parts(ref, 3)
 """
 function unsafe_from_parts(ref::MemoryRef, len::Int)
     return unsafe_new_memoryview(Mutable, ref, len)
-end
-
-"""
-    Base.memoryref(x::MemoryView{T})::MemoryRef{T}
-
-Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
-except if `x` is empty, where it may point to one element past the end.
-"""
-Base.memoryref(@nospecialize(x::MemoryView)) = x.ref
-Base.memoryref(@nospecialize(x::RefVector)) = x.ref
-
-"""
-    MemoryView{T}(v::RefVector{T}, len::Int)::MutableMemoryView{T}
-
-Construct a mutable memory view of the first `len` elements of `v`.
-"""
-function MemoryView{T}(v::RefVector{T}, len::Int) where {T}
-    @boundscheck if (len % UInt) > (length(v) % UInt)
-        throw_lightboundserror(v, Base.OneTo(len))
-    end
-    return unsafe_new_memoryview(Mutable, v.ref, len)
 end
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
@@ -244,7 +195,7 @@ See: [`MemoryKind`](@ref)
 """
 struct IsMemory{T <: MemoryView} <: MemoryKind
     function IsMemory{T}() where {T}
-        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
+        isconcretetype(T) || error("In IsMemory{T}, T must be concrete, got ", string(T))
         return new{T}()
     end
 end
@@ -263,6 +214,7 @@ MemoryKind(::Type) = NotMemory()
 MemoryKind(::Type{Union{}}) = NotMemory()
 MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
+include("refvector.jl")
 include("construction.jl")
 include("basic.jl")
 include("delimited.jl")

@@ -5,7 +5,7 @@
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://biojulia.github.io/MemoryViews.jl/dev)
 [![](https://codecov.io/gh/BioJulia/MemoryViews.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/BioJulia/MemoryViews.jl)
 
-This package implements `MemoryView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemoryKind` trait to guide dispatch of generic methods to memory views.
+This package implements the types `MemoryView` and `RefVector`: Simple, low-level view into a chunk of `Memory`, as well as the `MemoryKind` trait to guide dispatch of generic methods to memory views.
 It is intended to be used as a foundational base for other packages.
 
 To learn how to use the package, [read the documentation](https://biojulia.github.io/MemoryViews.jl/dev/)
@@ -57,7 +57,6 @@ foo(x::AbstractString) = foo(codeunits(x))
 
 ## API differences from `Memory`
 * For `v::MemoryView`, `v[1:3]` creates a view into the same memory, instead of allocating new backing memory.
-* `copyto!` and `unsafe_copyto!` do not take starting indices. Instead, simply create new views starting at the desired indices.
 
 ## Limitations
 * Many optimised fast methods for more established types like `Vector` are missing for `MemoryView`.
