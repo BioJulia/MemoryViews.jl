@@ -1063,6 +1063,18 @@ end
 
     # Negative nb is invalid
     @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)
+
+    refmemory = fill!(Memory{UInt8}(undef, 8), 0xaa)
+    refvector = RefVector(refmemory)
+    @test readbytes!(IOBuffer(data), refvector, 7) == 7
+    @test refvector == b"Hello, \xaa"
+
+    fill!(refvector, 0xaa)
+    @test readbytes!(IOBuffer(data), refvector, 10) == length(refvector)
+    @test refvector == b"Hello, w"
+
+    @test iszero(readbytes!(IOBuffer(), refvector))
+    @test_throws ArgumentError readbytes!(IOBuffer(data), refvector, -1)
 end
 
 @testset "Base arrays" begin
@@ -1155,6 +1167,13 @@ end
 
         @test append!(v, MemoryView([2, 1])) === v
         @test v == [7, 2, 1, 2, 1]
+
+        refvector = RefVector(Memory{Int}([8, 13]))
+        @test append!(v, refvector) === v
+        @test v == [7, 2, 1, 2, 1, 8, 13]
+
+        @test append!(v, RefVector(Memory{Int}())) === v
+        @test v == [7, 2, 1, 2, 1, 8, 13]
     end
 end
 

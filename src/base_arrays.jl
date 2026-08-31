@@ -33,7 +33,7 @@ function Base.copy!(mem::MutableMemoryVector{T}, A::Union{Memory{T}, Array{T}}) 
     return copy!(mem, MemoryView(A))
 end
 
-function Base.append!(v::Vector{T}, mem::MemoryView{T}) where {T}
+function Base.append!(v::Vector{T}, mem::MemoryVector{T}) where {T}
     isempty(mem) && return v
     old_len = length(v)
     resize!(v, length(v) + length(mem))
