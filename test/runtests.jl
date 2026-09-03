@@ -355,10 +355,18 @@ end
     @test memoryref(ref, 2)[] === 30
 
     imm = MemoryView("abc")[2:3]
-    ref = memoryref(imm)
+    @test_throws MethodError memoryref(imm)
+
+    ref = unsafe_memoryref(imm)
     @test ref === imm.ref
     @test memoryref(ref, 1)[] === UInt8('b')
     @test memoryref(ref, 2)[] === UInt8('c')
+
+    backing = [10, 20, 30]
+    imm = ImmutableMemoryView(backing)[2:3]
+    ref = unsafe_memoryref(imm)
+    memoryref(ref, 1)[] = 50
+    @test backing == [10, 50, 30]
 end
 
 @testset "Misc functions" begin
