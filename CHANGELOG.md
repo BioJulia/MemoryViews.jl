@@ -4,6 +4,14 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.4.4
+* Add the `RefVector` type. This type is essentially a `MemoryView` with its
+  length outlined, which makes it slightly more efficient when used as backing
+  storage sized containers in some cases - see its documentation.
+
+## 0.4.3
+* Allow compatibility with LibDeflate v1
+
 ## 0.4.2
 * Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
 

@@ -131,8 +131,8 @@ println(mem3[1])
 ```
 
 ### `RefVector` for backing storage
-The package also provides `RefVector{T}`, a mutable `DenseVector{T}` that stores
-only a `MemoryRef{T}`.
+The package also provides `RefVector{T}`, a mutable `DenseVector{T}` that is guaranteed to be an immutable struct containing no other sized data than a `MemoryRef{T}`.
+
 It differs from `MutableMemoryView{T}` in that its length is always from the ref and to the end of the underlying memory.
 Furthermore, the length is not stored inline, but inside the `Memory` and thus behind a pointer indirection.
 This makes the type one word smaller than `MemoryView` at the cost of less efficient length queries.
@@ -142,19 +142,22 @@ For example, we could have a type like:
 ```julia
 struct MyArray{T, N}
     ref::RefVector{T}
-    size::NTuple{N, T}
+    size::NTuple{N, UInt}
 end
 ```
 Here, using a `RefVector` saves one word in size, and the slower access to its length does not matter,
-because `MyArray` would do the boundschecking and forward to the `RefVector` with `@inbounds`, such
-that its length need not be queried.
+because `MyArray` would do the boundschecking and forward to the `RefVector` with `@inbounds`, such that its length need not be queried.
 
 ```jldoctest; output=false
 memory = Memory{Int}(undef, 4)
-refvector = RefVector(memoryref(memory))
+refvector = RefVector(memory)
 @assert length(refvector) == 4
 @assert sizeof(typeof(refvector)) + sizeof(Int) == sizeof(typeof(MemoryView(memory)))
 
 # output
 
 ```
+
+`RefVector` can be constructed from a `Memory`, in which case the input is used as the storage.
+Use `unsafe_refvector` to construct one from a `MemoryRef`, after ensuring the reference does not point to immutable memory.
+It also has a `RefVector{T}(undef, len::Int)` constructor, which is equivalent to `RefVector(Memory{T}(undef, len))`.
