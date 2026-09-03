@@ -4,6 +4,12 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.5.0
+### Breaking changes
+* `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
+  This method was unsafe, and so has been removed.
+  To get a `MemoryRef` from `ImmutableMemory`, use the new `unsafe_memoryref` function.
+
 ## 0.4.4
 ### Added
 * `split_at(::MemoryView, ::Int)`'s signature has now been relaxed to
@@ -22,7 +28,6 @@ Many bug fixes. See git history for details.
 
 ## 0.4.3
 * Allow compatibility with LibDeflate v1
-
 ## 0.4.2
 * Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
 
