@@ -922,31 +922,41 @@ end
 end
 
 @testset "LibDeflate" begin
-    function test_view(view::MemoryView{UInt8}, mem::T, ::Type{T}) where {T}
-        @test length(view) == sizeof(mem)
+    function testview(view::MemoryView, mem::T, ::Type{T}) where {T}
+        @test sizeof(view) == sizeof(mem)
         @test UInt(pointer(view)) === UInt(pointer(mem))
-        if T === LibDeflate.WriteableMemory
-            @test view isa MutableMemoryView
-        end
     end
 
     RMem = LibDeflate.ReadableMemory
     WMem = LibDeflate.WriteableMemory
 
-    @test_throws MethodError RMem(MemoryView(Int32[]))
-    @test_throws MethodError RMem(MemoryView(Int8[]))
-    @test_throws MethodError RMem(MemoryView(String[]))
-    @test_throws MethodError WMem(MemoryView(Int8[]))
-
-    @test_throws MethodError WMem(ImmutableMemoryView(UInt8[]))
-    @test_throws MethodError WMem(MemoryView(b"abc"))
+    if Base.pkgversion(LibDeflate) < v"1"
+        @test_throws ErrorException RMem(MemoryView(String[]))
+        for (mem, T) in Any[
+                (MemoryView(Int32[1, 2]), RMem),
+                (MemoryView(Int8[-1, 0]), RMem),
+                (MemoryView(Int8[-1, 0]), WMem),
+                (ImmutableMemoryView(UInt8[0x01, 0x02]), WMem),
+                (MemoryView(b"abc"), WMem),
+            ]
+            testview(mem, T(mem), T)
+        end
+    else
+        @test_throws MethodError RMem(MemoryView(String[]))
+        @test_throws MethodError RMem(MemoryView(Int32[1, 2]))
+        @test_throws MethodError RMem(MemoryView(Int8[-1, 0]))
+        @test_throws MethodError WMem(MemoryView(Int8[-1, 0]))
+        @test_throws MethodError WMem(ImmutableMemoryView(UInt8[0x01, 0x02]))
+        @test_throws MethodError WMem(MemoryView(b"abc"))
+    end
+    @test_throws MethodError WMem(MemoryView(String[]))
 
     for (mem, T) in Any[
             (ImmutableMemoryView("abc"), RMem),
             (MemoryView([0x01, 0x02]), WMem),
             (ImmutableMemoryView([0x01, 0x01]), RMem),
         ]
-        test_view(mem, T(mem), T)
+        testview(mem, T(mem), T)
     end
 
     cmem = MemoryView(zeros(UInt8, 100))
@@ -954,12 +964,20 @@ end
     dmem2 = MemoryView(zeros(UInt8, 100))
 
     cbytes = LibDeflate.compress!(LibDeflate.Compressor(), cmem, dmem)
-    @test cbytes isa Int
+    compressed = cmem[1:(cbytes % Int)]
+    if Base.pkgversion(LibDeflate) < v"1"
+        @test cbytes isa Int
+        dbytes = LibDeflate.decompress!(LibDeflate.Decompressor(), dmem2, compressed)
+        @test dbytes isa Int
+    else
+        @test cbytes isa UInt
+        result = LibDeflate.decompress!(LibDeflate.Decompressor(), dmem2, compressed)
+        @test result.read == cbytes
+        @test result.written isa UInt
+        dbytes = result.written
+    end
 
-    dbytes = LibDeflate.decompress!(LibDeflate.Decompressor(), dmem2, cmem[1:cbytes])
-    @test dbytes isa Int
-
-    @test dmem2[1:dbytes] == dmem
+    @test dmem2[1:(dbytes % Int)] == dmem
 
     @test LibDeflate.crc32(ImmutableMemoryView([0x01, 0x02, 0x03])) isa UInt32
 end
