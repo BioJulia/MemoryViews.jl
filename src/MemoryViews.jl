@@ -10,6 +10,7 @@ export MemoryView,
     inner,
     split_each,
     unsafe_from_parts,
+    unsafe_memoryref,
     split_first,
     split_last,
     split_at,
@@ -137,6 +138,31 @@ julia> view = unsafe_from_parts(ref, 3)
 function unsafe_from_parts(ref::MemoryRef, len::Int)
     return unsafe_new_memoryview(Mutable, ref, len)
 end
+
+"""
+    Base.memoryref(x::MutableMemoryView{T})::MemoryRef{T}
+
+Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
+except if `x` is empty, where it may point to one element past the end.
+
+To get the `MemoryRef` from an immutable `MemoryView`, use
+[`unsafe_memoryref]`(@ref)
+"""
+Base.memoryref(@nospecialize(x::MutableMemoryView)) = x.ref
+
+"""
+    unsafe_memoryref(x::MemoryView{T})::MemoryRef{T}
+
+Same as `memoryref(::MutableMemoryView)`, but also works for `ImmutableMemoryView`.
+Users must ensure only to mutate the resulting `MemoryRef` if `x` does not alias
+memory assumed to be immutable.
+
+!!! warning
+    As the resulting `MemoryRef` is mutable, users must take care that this
+    function allows mutation of memory assumed to be immutable, such as
+    the memory backing a `String`. This can cause undefined behavour.
+"""
+unsafe_memoryref(@nospecialize(x::MemoryView)) = x.ref
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
