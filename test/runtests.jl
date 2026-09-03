@@ -1299,7 +1299,7 @@ end
     testview(refvector, WMem(refvector), WMem)
 
     cmem = RefVector{UInt8}(undef, 100)
-    dmem = ImmutableMemoryView(b"TAGTCGTAGATGA")
+    dmem = RefVector(Memory{UInt8}(b"TAGTCGTAGATGA"))
     dmem2 = RefVector{UInt8}(undef, 100)
 
     cbytes = LibDeflate.compress!(LibDeflate.Compressor(), cmem, dmem)
