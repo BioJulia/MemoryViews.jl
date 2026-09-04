@@ -73,6 +73,283 @@ end
     @test_throws TypeError ImmutableMemoryView{UInt32}(x)
 end
 
+@testset "RefVector interface" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 3, 5)
+    refvector = unsafe_refvector(memoryref(memory))
+
+    @test refvector isa DenseVector{Int}
+    @test fieldnames(typeof(refvector)) == (:ref,)
+    @test fieldtypes(typeof(refvector)) == (MemoryRef{Int},)
+    @test sizeof(typeof(refvector)) == sizeof(MemoryRef{Int})
+    @test parent(refvector) === memory
+    @test memoryref(refvector) === memoryref(memory)
+    @test length(refvector) == 3
+    @test size(refvector) == (3,)
+    @test axes(refvector) == (Base.OneTo(3),)
+    @test IndexStyle(typeof(refvector)) === Base.IndexLinear()
+    @test strides(refvector) == (1,)
+    @test collect(refvector) == [2, 3, 5]
+    @test sizeof(refvector) == 3 * sizeof(Int)
+    @test sizeof(typeof(refvector)) + sizeof(Int) == sizeof(MutableMemoryView{Int})
+
+    refvector[2] = 7
+    @test memory[2] == 7
+    @test_throws LightBoundsError refvector[0]
+    @test_throws LightBoundsError refvector[4] = 11
+
+    offsetrefvector = unsafe_refvector(@inbounds memoryref(memory, 2))
+    @test length(offsetrefvector) == 2
+    @test size(offsetrefvector) == (2,)
+    @test parentindices(offsetrefvector) == (2:3,)
+    @test collect(offsetrefvector) == [7, 5]
+    @test MemoryView(offsetrefvector) == [7, 5]
+    @test_throws LightBoundsError offsetrefvector[3]
+end
+
+@testset "RefVector pointers" begin
+    memory = Memory{Int}(undef, 3)
+    refvector = unsafe_refvector(memoryref(memory))
+    GC.@preserve refvector begin
+        @test pointer(refvector) == pointer(memory)
+        @test Base.unsafe_convert(Ptr{Int}, refvector) == pointer(memory)
+        @test Base.cconvert(Ptr{Int}, refvector) === memoryref(memory)
+    end
+end
+
+@testset "RefVector construction" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 7, 5)
+    refvector = unsafe_refvector(memoryref(memory))
+    @test_throws MethodError RefVector(memoryref(memory))
+    memview = MemoryView{Int}(refvector, 2)
+    @test memview isa MutableMemoryView{Int}
+    @test parent(memview) === memory
+    @test memview == [2, 7]
+    @test MemoryView(refvector) == refvector
+    @test ImmutableMemoryView(refvector) isa ImmutableMemoryView{Int}
+    @test MemoryKind(RefVector{Int}) == IsMemory(MutableMemoryView{Int})
+    @test_throws LightBoundsError MemoryView{Int}(refvector, -1)
+    @test_throws LightBoundsError MemoryView{Int}(refvector, 4)
+
+    allocated = RefVector{Int}(undef, 3)
+    @test allocated isa RefVector{Int}
+    @test parent(allocated) isa Memory{Int}
+    @test length(allocated) == 3
+
+    frommemory = RefVector(memory)
+    @test frommemory isa RefVector{Int}
+    @test parent(frommemory) === memory
+    frommemory[1] = 11
+    @test memory[1] == 11
+end
+
+@testset "RefVector range indexing and views" begin
+    memory = Memory{Int}(undef, 5)
+    memory .= (2, 3, 5, 7, 11)
+    refvector = unsafe_refvector(@inbounds memoryref(memory, 2))
+
+    for idx in Any[2:3, Int32(1):Int32(2), UInt(2):UInt(4), Base.OneTo(3)]
+        result = refvector[idx]
+        @test result isa MutableMemoryView{Int}
+        @test result == collect(refvector)[idx]
+        @test parent(result) === memory
+    end
+
+    rangeview = refvector[2:3]
+    rangeview[1] = 13
+    @test memory[3] == 13
+
+    colonview = refvector[:]
+    @test colonview isa MutableMemoryView{Int}
+    @test memoryref(colonview) === memoryref(refvector)
+    colonview[1] = 17
+    @test memory[2] == 17
+
+    explicitview = view(refvector, 2:3)
+    @test explicitview isa MutableMemoryView{Int}
+    @test explicitview === refvector[2:3]
+    explicitview[2] = 19
+    @test memory[4] == 19
+
+    @test refvector[3:2] isa MutableMemoryView{Int}
+    @test isempty(refvector[3:2])
+    @test_throws LightBoundsError refvector[0:1]
+    @test_throws LightBoundsError view(refvector, 4:5)
+end
+
+@testset "RefVector similar, empty and broadcasting" begin
+    memory = Memory{Int}(undef, 3)
+    memory .= (2, 3, 5)
+    refvector = unsafe_refvector(memoryref(memory))
+
+    similarvector = similar(refvector)
+    @test similarvector isa RefVector{Int}
+    @test length(similarvector) == 3
+    similarbytes = similar(refvector, UInt8, (2,))
+    @test similarbytes isa RefVector{UInt8}
+    @test length(similarbytes) == 2
+
+    @test empty(refvector) isa RefVector{Int}
+    @test isempty(empty(refvector))
+    @test empty(RefVector{UInt8}) isa RefVector{UInt8}
+    @test isempty(empty(RefVector{UInt8}))
+
+    broadcasted = refvector .+ 1
+    @test broadcasted isa Vector{Int}
+    @test broadcasted == [3, 4, 6]
+    mixed = [1, 2, 3] .+ refvector
+    @test mixed isa Vector{Int}
+    @test mixed == [3, 5, 8]
+    refvector .= refvector .+ 1
+    @test refvector == [3, 4, 6]
+    matrixbroadcast = reshape([10, 20, 30], 1, :) .+ refvector
+    @test matrixbroadcast isa Matrix{Int}
+    @test matrixbroadcast == [13 23 33; 14 24 34; 16 26 36]
+end
+
+@testset "RefVector aliasing" begin
+    memory = Memory{Int}(undef, 3)
+    refvector = unsafe_refvector(memoryref(memory))
+    memview = MemoryView{Int}(refvector, 2)
+    @test Base.mightalias(refvector, memview)
+    @test Base.mightalias(memview, refvector)
+    @test Base.mightalias(refvector, memory)
+    @test Base.mightalias(memory, refvector)
+    @test !Base.mightalias(refvector, unsafe_refvector(memoryref(Memory{Int}(undef, 3))))
+    @test !Base.mightalias(refvector, unsafe_refvector(memoryref(Memory{UInt}(undef, 3))))
+end
+
+@testset "RefVector copy and reverse" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 3, 5, 7)
+    refvector = unsafe_refvector(memoryref(memory))
+
+    copied = copy(refvector)
+    @test copied isa RefVector{Int}
+    @test copied == refvector
+    @test parent(copied) !== parent(refvector)
+    copied[1] = 11
+    @test refvector == [2, 3, 5, 7]
+
+    reversed = reverse(refvector)
+    @test reversed isa RefVector{Int}
+    @test reversed == [7, 5, 3, 2]
+    @test parent(reversed) !== parent(refvector)
+    @test reverse!(refvector) === refvector
+    @test refvector == [7, 5, 3, 2]
+
+    iterator = Iterators.reverse(refvector)
+    @test iterator isa MemoryViews.ReverseMemoryView{Int}
+    @test collect(iterator) == [2, 3, 5, 7]
+    @test Iterators.reverse(iterator) == refvector
+end
+
+@testset "RefVector fill!" begin
+    memory = Memory{UInt8}(undef, 5)
+    refvector = unsafe_refvector(memoryref(memory))
+    @test fill!(refvector, 7) === refvector
+    @test refvector == fill(0x07, 5)
+    @test_throws InexactError fill!(refvector, 256)
+
+    intmemory = Memory{Int}(undef, 3)
+    intrefvector = unsafe_refvector(memoryref(intmemory))
+    @test fill!(intrefvector, 13) === intrefvector
+    @test intrefvector == fill(13, 3)
+end
+
+@testset "RefVector findnext" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 4, 5, 6)
+    refvector = unsafe_refvector(memoryref(memory))
+    @test findnext(isodd, refvector, 2) == 3
+    @test findnext(isodd, refvector, 4) === nothing
+    @test_throws LightBoundsError findnext(isodd, refvector, 0)
+
+    bytememory = Memory{UInt8}(undef, 6)
+    bytememory .= (6, 2, 7, 0, 2, 1)
+    byterefvector = unsafe_refvector(memoryref(bytememory))
+    @test findnext(==(0x02), byterefvector, 3) == 5
+    @test findnext(isequal(0x07), byterefvector, 1) == 3
+    @test findnext(iszero, byterefvector, 1) == 4
+    @test findnext(==(0x09), byterefvector, 1) === nothing
+end
+
+@testset "RefVector findprev" begin
+    memory = Memory{Int}(undef, 4)
+    memory .= (2, 4, 5, 6)
+    refvector = unsafe_refvector(memoryref(memory))
+    @test findprev(isodd, refvector, 4) == 3
+    @test findprev(isodd, refvector, 2) === nothing
+    @test_throws LightBoundsError findprev(isodd, refvector, 5)
+
+    bytememory = Memory{UInt8}(undef, 6)
+    bytememory .= (6, 2, 7, 0, 2, 1)
+    byterefvector = unsafe_refvector(memoryref(bytememory))
+    @test findprev(==(0x02), byterefvector, 4) == 2
+    @test findprev(isequal(0x07), byterefvector, 6) == 3
+    @test findprev(iszero, byterefvector, 6) == 4
+    @test findprev(==(0x09), byterefvector, 6) === nothing
+end
+
+@testset "RefVector bitstype equality and cmp" begin
+    firstmemory = Memory{UInt8}(undef, 4)
+    firstmemory .= (9, 2, 3, 5)
+    first = unsafe_refvector(@inbounds memoryref(firstmemory, 2))
+    secondmemory = Memory{UInt8}(undef, 3)
+    secondmemory .= (2, 3, 5)
+    second = unsafe_refvector(memoryref(secondmemory))
+    secondview = MemoryView(secondmemory)
+
+    @test first == second
+    @test first == secondview
+    @test secondview == first
+    @test cmp(first, second) == 0
+    @test cmp(first, MemoryView(UInt8[2, 3, 6])) < 0
+    @test cmp(MemoryView(UInt8[2, 3]), first) < 0
+
+    unionmemory = Memory{Union{Int8, UInt8}}(undef, 2)
+    unionmemory .= (Int8(-1), UInt8(2))
+    unioncopy = copy(unionmemory)
+    @test unsafe_refvector(memoryref(unionmemory)) == unsafe_refvector(memoryref(unioncopy))
+    unioncopy[2] = UInt8(3)
+    @test unsafe_refvector(memoryref(unionmemory)) != unsafe_refvector(memoryref(unioncopy))
+end
+
+@testset "RefVector copying" begin
+    sourcememory = Memory{Int}(undef, 3)
+    sourcememory .= (1, 2, 3)
+    source = unsafe_refvector(memoryref(sourcememory))
+
+    destmemory = Memory{Int}(undef, 3)
+    destination = unsafe_refvector(memoryref(destmemory))
+    @test copy!(destination, source) === destination
+    @test destination == source
+
+    destmemory = Memory{Int}(undef, 4)
+    destmemory .= (0, 0, 0, 9)
+    destination = unsafe_refvector(memoryref(destmemory))
+    @test copyto!(destination, source) === destination
+    @test destination == [1, 2, 3, 9]
+
+    @test copy!(MemoryView(destmemory)[1:3], source) == source
+    mixedmemory = Memory{Int}(undef, 3)
+    mixeddestination = unsafe_refvector(memoryref(mixedmemory))
+    @test copy!(mixeddestination, MemoryView(sourcememory)) === mixeddestination
+    @test mixeddestination == source
+    @test_throws LightBoundsError copy!(destination, source)
+    @test_throws LightBoundsError copyto!(source, destination)
+
+    memory = Memory{Int}(undef, 4)
+    memory .= (1, 2, 3, 4)
+    refvector = unsafe_refvector(memoryref(memory))
+    @test copyto!(refvector, 2, refvector, 3, 2) === refvector
+    @test refvector == [1, 3, 4, 4]
+    @test_throws ArgumentError copyto!(refvector, 1, refvector, 1, -1)
+    @test_throws LightBoundsError copyto!(refvector, 1, refvector, 4, 2)
+    @test_throws LightBoundsError copyto!(refvector, 4, refvector, 1, 2)
+end
+
 @testset "Immutable views are immutable" begin
     mem = MemoryView("abc")
     @test mem isa ImmutableMemoryView{UInt8}
@@ -466,13 +743,14 @@ end
         @test_throws LightBoundsError copyto!(mem, UInt(1), mem, UInt(4), UInt(1))
         @test_throws LightBoundsError copyto!(mem, 4, mem, 1, 1)
         @test_throws LightBoundsError copyto!(mem, 1, mem, 1, 4)
+        @test_throws ArgumentError copyto!(mem, 1, mem, 1, -1)
 
         mem = MemoryView([1, 2, 3, 4])
-        @test copyto!(mem, 2, mem, 3, 2) == [3, 4]
+        @test copyto!(mem, 2, mem, 3, 2) === mem
         @test mem == [1, 3, 4, 4]
 
         mem = MemoryView([1, 2, 3, 4])
-        @test copyto!(mem, Int32(1), mem, Int32(3), Int32(2)) == [3, 4]
+        @test copyto!(mem, Int32(1), mem, Int32(3), Int32(2)) === mem
         @test mem == [3, 4, 3, 4]
     end
 
@@ -791,6 +1069,18 @@ end
 
     # Negative nb is invalid
     @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)
+
+    refmemory = fill!(Memory{UInt8}(undef, 8), 0xaa)
+    refvector = RefVector(refmemory)
+    @test readbytes!(IOBuffer(data), refvector, 7) == 7
+    @test refvector == b"Hello, \xaa"
+
+    fill!(refvector, 0xaa)
+    @test readbytes!(IOBuffer(data), refvector, 10) == length(refvector)
+    @test refvector == b"Hello, w"
+
+    @test iszero(readbytes!(IOBuffer(), refvector))
+    @test_throws ArgumentError readbytes!(IOBuffer(data), refvector, -1)
 end
 
 @testset "Base arrays" begin
@@ -804,6 +1094,12 @@ end
         @test Memory{Int}(v) !== parent(v)
 
         @test isempty(Memory{Int}(v[1:0]))
+
+        refvector = RefVector(Memory{Int}([7, 3, 2]))
+        @test Memory(refvector) isa Memory{Int}
+        @test Memory(refvector) == refvector
+        @test Memory{Int}(refvector) == refvector
+        @test Memory(refvector) !== parent(refvector)
     end
 
     @testset "Vector construction" begin
@@ -815,6 +1111,11 @@ end
         @test Vector{String}(v) == v
 
         @test isempty(Vector{String}(v[1:0]))
+
+        refvector = RefVector(Memory{String}(["some", "strings"]))
+        @test Vector(refvector) isa Vector{String}
+        @test Vector(refvector) == refvector
+        @test Vector{String}(refvector) == refvector
     end
 
     @testset "Vector/Memory copying" begin
@@ -831,6 +1132,33 @@ end
         v = Memory{Int}(undef, 3)
         @test copy!(v, m) === v
         @test v == m
+
+        source = RefVector(Memory{Int}([11, 13, 17]))
+
+        arraydestination = zeros(Int, 5)
+        @test copyto!(arraydestination, source) === arraydestination
+        @test arraydestination == [11, 13, 17, 0, 0]
+        @test copy!(arraydestination, source) === arraydestination
+        @test arraydestination == source
+
+        memorydestination = Memory{Int}(undef, 3)
+        @test copyto!(memorydestination, source) === memorydestination
+        @test memorydestination == source
+        @test copy!(memorydestination, source) === memorydestination
+        @test memorydestination == source
+
+        refdestination = RefVector{Int}(undef, 3)
+        arraysource = reshape([19, 23, 29], 1, 3)
+        @test copyto!(refdestination, arraysource) === refdestination
+        @test refdestination == vec(arraysource)
+        @test copy!(refdestination, [31, 37, 41]) === refdestination
+        @test refdestination == [31, 37, 41]
+
+        memorysource = Memory{Int}([43, 47, 53])
+        @test copyto!(refdestination, memorysource) === refdestination
+        @test refdestination == memorysource
+        @test copy!(refdestination, memorysource) === refdestination
+        @test refdestination == memorysource
     end
 
     @testset "Vector append!" begin
@@ -845,6 +1173,13 @@ end
 
         @test append!(v, MemoryView([2, 1])) === v
         @test v == [7, 2, 1, 2, 1]
+
+        refvector = RefVector(Memory{Int}([8, 13]))
+        @test append!(v, refvector) === v
+        @test v == [7, 2, 1, 2, 1, 8, 13]
+
+        @test append!(v, RefVector(Memory{Int}())) === v
+        @test v == [7, 2, 1, 2, 1, 8, 13]
     end
 end
 
@@ -922,7 +1257,7 @@ end
 end
 
 @testset "LibDeflate" begin
-    function testview(view::MemoryView, mem::T, ::Type{T}) where {T}
+    function testview(view, mem::T, ::Type{T}) where {T}
         @test sizeof(view) == sizeof(mem)
         @test UInt(pointer(view)) === UInt(pointer(mem))
     end
@@ -959,9 +1294,13 @@ end
         testview(mem, T(mem), T)
     end
 
-    cmem = MemoryView(zeros(UInt8, 100))
-    dmem = ImmutableMemoryView(b"TAGTCGTAGATGA")
-    dmem2 = MemoryView(zeros(UInt8, 100))
+    refvector = RefVector(Memory{UInt8}([0x01, 0x02, 0x03]))
+    testview(refvector, RMem(refvector), RMem)
+    testview(refvector, WMem(refvector), WMem)
+
+    cmem = RefVector{UInt8}(undef, 100)
+    dmem = RefVector(Memory{UInt8}(b"TAGTCGTAGATGA"))
+    dmem2 = RefVector{UInt8}(undef, 100)
 
     cbytes = LibDeflate.compress!(LibDeflate.Compressor(), cmem, dmem)
     compressed = cmem[1:(cbytes % Int)]

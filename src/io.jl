@@ -2,7 +2,7 @@
 # because the fallback definition for ::IO ::AbstractArray{UInt8}
 # is a performance disaster.
 # This encourages implementors of IOs to implement a method for this.
-function Base.readbytes!(io::IO, v::MutableMemoryView{UInt8}, nb::Integer = length(v))
+function Base.readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer = length(v))
     nb = Int(nb)::Int
     nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
     # A view of all the bytes not yet read

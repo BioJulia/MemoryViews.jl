@@ -1,7 +1,7 @@
 name = "MemoryViews"
 uuid = "a791c907-b98b-4e44-8f4d-e4c2362c6b2f"
-version = "0.4.3"
-authors = ["Jakob Nybo Nissen <jakobnybonissen@gmail.com>"]
+version = "0.4.4"
+authors = ["Jakob Nybo Andersen <jnandersen@proton.me>"]
 
 [deps]
 LightBoundsErrors = "e21c612c-4641-4669-b9c3-3f4360ced9da"
@@ -18,7 +18,7 @@ LibDeflateExt = "LibDeflate"
 
 [compat]
 Aqua = "0.8.7"
-StringViews = "1"
+StringViews = "1, 2"
 FixedSizeArrays = "1"
 LibDeflate = "0.4, 1"
 LightBoundsErrors = "1.1"
