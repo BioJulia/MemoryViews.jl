@@ -35,6 +35,13 @@ function Base.parentindices(x::MemoryVector)
     return (start:(start + length(x) - 1),)
 end
 
+# Core.sizeof is the aligned allocation size in Julia 1.14 and later.
+@static if VERSION < v"1.14"
+    element_aligned_sizeof(T::Type) = Base.aligned_sizeof(T)
+else
+    element_aligned_sizeof(T::Type) = Core.sizeof(T)
+end
+
 function Base.copy(x::MemoryView{T, M}) where {T, M}
     isempty(x) && return x
     newmem = @inbounds x.ref.mem[only(parentindices(x))]
@@ -546,12 +553,14 @@ If `v` is empty or already aligned, `a` will be empty.
 If no elements of `v` is aligned, `b` will be empty and `a` will be equal to `v`.
 The element type of `v` must be a bitstype.
 
+If `b` has no elements, no alignment is guaranteed about the empty `b`.
+
 !!! warning
     When using this function, make sure to `GC.@preserve v`, to make sure Julia
     does not move `v` in memory.
 
 # Examples:
-```
+```julia
 julia> split_unaligned(MemoryView(Int16[1, 2, 3]), Val(8))
 (Int16[], Int16[1, 2, 3])
 
@@ -565,12 +574,33 @@ function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
     in(A, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
     alignment = A % UInt
     mask = alignment - 1
-    sz = Base.elsize(v)
+    sz = element_aligned_sizeof(T) % UInt
     # Early return here to avoid division by zero: Size sz is statically known,
     # this will be compiled away
     iszero(sz) && return (unsafe_new_memoryview(M, v.ref, 0), v)
-    ptr_int = GC.@preserve v UInt(pointer(v))
+    ptr_int = UInt(pointer(v))
     unaligned_bytes = ((alignment - (ptr_int & mask)) & mask)
-    n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
+
+    # Already aligned: Early return
+    emp = @inbounds truncate(v, 0)
+    iszero(unaligned_bytes) && return (emp, v)
+
+
+    common = gcd(sz, alignment)
+    if !iszero(rem(unaligned_bytes, common))
+        return (v, emp)
+    end
+    period = div(alignment, common)
+    n_elements = if isone(period)
+        0
+    else
+        rem(
+            div(unaligned_bytes, common) * invmod(div(sz, common), period),
+            period,
+        ) % Int
+    end
+    if n_elements > length(v)
+        return @inbounds (v, emp)
+    end
     return @inbounds split_at(v, n_elements + 1)
 end
