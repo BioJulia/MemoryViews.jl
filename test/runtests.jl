@@ -10,6 +10,8 @@ using MemoryViews: DelimitedIterator, Mutable, Immutable
 
 MemoryViews.MemoryView(s::GenericString) = MemoryView(s.string)
 
+primitive type ThreeBytePrimitive 24 end
+
 MUT_BACKINGS = Any[
     # Arrays
     UInt8[1, 2],
@@ -873,6 +875,21 @@ end
         @test split_unaligned(v, Val(4)) == split_at(v, 1)
         @test split_unaligned(v, Val(8)) == split_at(v, 3)
         @test split_unaligned(v, Val(16)) == split_at(v, 7)
+
+        mem = MemoryView(fill((0x01, 0x02, 0x03), 10))
+        @test UInt(pointer(mem)) % 8 == 0
+        v = mem[2:7]
+        @test split_unaligned(v, Val(8)) == split_at(v, length(v) + 1)
+        v = mem[3:end]
+        @test split_unaligned(v, Val(8)) == split_at(v, 7)
+
+        mem = MemoryView(Memory{ThreeBytePrimitive}(undef, 4))
+        @test MemoryViews.element_aligned_sizeof(ThreeBytePrimitive) == Base.elsize(mem)
+        @test UInt(pointer(mem)) % 8 == 0
+        (prefix, suffix) = split_unaligned(mem[2:end], Val(8))
+        @test length(prefix) == 1
+        @test length(suffix) == 2
+        @test UInt(pointer(suffix)) % 8 == 0
     end
 
     @testset "Find" begin
