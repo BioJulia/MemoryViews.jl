@@ -5,7 +5,7 @@
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://biojulia.github.io/MemoryViews.jl/dev)
 [![](https://codecov.io/gh/BioJulia/MemoryViews.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/BioJulia/MemoryViews.jl)
 
-This package implements `MemoryView`, a simple, low-level view into a chunk of `Memory`, as well as the `MemoryKind` trait to guide dispatch of generic methods to memory views.
+This package implements `MemoryView`, a simple, low-level view into a chunk of `Memory`.
 It is intended to be used as a foundational base for other packages.
 
 To learn how to use the package, [read the documentation](https://biojulia.github.io/MemoryViews.jl/dev/)
@@ -37,22 +37,21 @@ fst = mem1[1]
 reverse!(mem2) # ... etc
 ```
 
-### Dispatching to MemoryView
+### Reusing a MemoryView implementation
 ```julia
 function foo(x::ImmutableMemoryView)
     # low-level implementation
 end
 
-function foo(::NotMemory, x::AbstractArray)
+function foo(x::AbstractArray)
     # slow, generic fallback
 end
 
-# Dispatch with the `MemoryKind` trait
-foo(::IsMemory, x) = foo(ImmutableMemoryView(x))
-foo(x) = foo(MemoryKind(typeof(x)), x)
+# Forward supported memory-backed types to the low-level implementation
+foo(x::Union{Vector, Memory}) = foo(ImmutableMemoryView(x))
 
 # Optionally: Also support strings
-foo(x::AbstractString) = foo(codeunits(x))
+foo(x::Union{String, SubString{String}}) = foo(ImmutableMemoryView(x))
 ```
 
 ## API differences from `Memory`

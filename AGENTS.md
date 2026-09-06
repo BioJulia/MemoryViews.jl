@@ -4,7 +4,7 @@ This file provides guidance to LLMs when working with code in this repository.
 
 ## Project Overview
 
-MemoryViews.jl provides `MemoryView`, a low-level view into `Memory{T}` for Julia ≥ 1.11. It's a `DenseVector{T}` subtype representing a `MemoryRef{T}` + length, with static mutability tracking via type parameter (`Mutable`/`Immutable`). The package also defines the `MemoryKind` trait for dispatch on memory-backed types.
+MemoryViews.jl provides `MemoryView`, a low-level view into `Memory{T}` for Julia ≥ 1.11. It's a `DenseVector{T}` subtype representing a `MemoryRef{T}` + length, with static mutability tracking via type parameter (`Mutable`/`Immutable`).
 
 ## Commands
 
@@ -24,7 +24,6 @@ Set `--check-bounds=yes` to force boundschecking when running experiments.
 
 **Core types** (defined in `src/MemoryViews.jl`):
 - `MemoryView{T, M}` where `M ∈ {Mutable, Immutable}` — the main type
-- `MemoryKind` trait: `IsMemory{T}` / `NotMemory` for dispatch
 
 **Source files**:
 - `construction.jl` — constructors from Array, Memory, String, SubArray, CodeUnits
@@ -40,5 +39,4 @@ Set `--check-bounds=yes` to force boundschecking when running experiments.
 - Slicing creates views into the same memory (no allocation)
 - Performance-critical paths use `@ccall` to libc (`memset`, `memcmp`, `memchr`, `memrchr`) with `GC.@preserve`
 - Version-conditional code for Julia 1.12+ vs 1.13+ (e.g., `Base.memoryindex` for `parentindices`)
-- Trait-based dispatch pattern: define `foo(x)` → `foo(MemoryKind(typeof(x)), x)` → specialized on `IsMemory`/`NotMemory`
 - `@boundscheck`/`@inbounds` used throughout for safe-by-default with opt-in elision

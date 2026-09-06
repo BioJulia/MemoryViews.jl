@@ -8,7 +8,10 @@ not be mentioned here, because they do not impact how the package is to be used.
 ### Breaking changes
 * `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
   This method was unsafe, and so has been removed.
-  To get a `MemoryRef` from `ImmutableMemory`, use the new `unsafe_memoryref` function.
+  To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
+* Removed the `MemoryKind` interface, including the `IsMemory` and `NotMemory`
+  types and the `inner(::IsMemory)` function. Dispatch directly on `MemoryView`
+  instead.
 
 ## 0.4.2
 * Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
@@ -86,6 +89,4 @@ Various fixes and optimizations.
 * Add functions `split_first`, `split_last`, `split_at` and `split_unaligned`
 * Add a more correct implementation of `Base.mightalias` for memory views and
   some types of arrays
-
-
 

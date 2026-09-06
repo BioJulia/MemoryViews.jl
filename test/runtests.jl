@@ -73,6 +73,41 @@ end
     @test_throws TypeError ImmutableMemoryView{UInt32}(x)
 end
 
+@testset "SubArray construction" begin
+    a = reshape(collect(1:24), 4, 3, 2)
+
+    for s in Any[
+            view(a, 2:4),
+            view(a, :, 2, 1),
+            view(a, :, 2:3, 1),
+            view(a, 2:4, 2, 1),
+            view(a, 1, 2, 1),
+            view(a, Base.IdentityUnitRange(2:4)),
+            view(a, 1:0),
+            view(a, :, :, :),
+        ]
+        mem = MemoryView(s)
+        @test mem isa MutableMemoryView{Int}
+        @test mem == vec(collect(s))
+    end
+
+    # Contiguity must follow from the type. A StepRange is therefore not
+    # accepted even when its runtime step happens to be one.
+    @test_throws MethodError MemoryView(view(a, 1:1:4))
+    @test_throws MethodError MemoryView(view(a, 1:2:4))
+    @test_throws MethodError MemoryView(view(a, 4:-1:2))
+    @test_throws MethodError MemoryView(view(a, 1, :, 1))
+    @test_throws MethodError MemoryView(view(a, 1:2, :, 1))
+
+    @test MemoryView(view(UInt8[0x61], 1)) == UInt8[0x61]
+    @test MemoryView(view(b"abcde", Base.IdentityUnitRange(2:4))) == b"bcd"
+
+    # The index layout is contiguous, but the parent is not memory-backed.
+    range_view = view(reshape(UInt8(1):UInt8(6), 2, 3), 2:4)
+    @test range_view isa MemoryViews.ContiguousSubArray
+    @test_throws MethodError MemoryView(range_view)
+end
+
 @testset "Immutable views are immutable" begin
     mem = MemoryView("abc")
     @test mem isa ImmutableMemoryView{UInt8}
@@ -869,48 +904,20 @@ end
     @test Base.cconvert(Ptr{Int}, v2) === v2.ref
 end
 
-@testset "MemoryKind" begin
-    @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
-    @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
-        IsMemory(ImmutableMemoryView{UInt8})
-    @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
-        IsMemory(MutableMemoryView{String})
-    @test MemoryKind(Matrix{Nothing}) == NotMemory()
-    @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
-    @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
-
-    @test MemoryKind(ImmutableMemoryView{Dict}) == IsMemory(ImmutableMemoryView{Dict})
-    @test MemoryKind(MutableMemoryView{UInt32}) == IsMemory(MutableMemoryView{UInt32})
-
-    @test inner(IsMemory(MutableMemoryView{Int32})) == MutableMemoryView{Int32}
-    @test inner(IsMemory(ImmutableMemoryView{Tuple{String, Int}})) ==
-        ImmutableMemoryView{Tuple{String, Int}}
-
-    @test MemoryKind(SubString{String}) == NotMemory()
-    @test MemoryKind(String) == NotMemory()
-    @test MemoryKind(Int) == NotMemory()
-    @test MemoryKind(Nothing) == NotMemory()
-    @test MemoryKind(Union{}) == NotMemory()
-    @test_throws Exception inner(NotMemory())
-end
-
 @testset "StringViews" begin
     # Backed by mutable array
     s = StringView([0x01, 0x02])
     @test MemoryView(s) isa MutableMemoryView{UInt8}
     @test MemoryView(s) == [0x01, 0x02]
-    @test MemoryKind(typeof(s)) == IsMemory{MutableMemoryView{UInt8}}()
 
     # Backed by immutable string data
     s = StringView(view(codeunits("abcd"), 2:4))
     @test MemoryView(s) isa ImmutableMemoryView{UInt8}
     @test MemoryView(s) == codeunits("bcd")
-    @test MemoryKind(typeof(s)) == IsMemory{ImmutableMemoryView{UInt8}}()
 
     # Not backed by memory
     s = StringView(view(0x61:0x65, 2:4))
     @test_throws MethodError MemoryView(s)
-    @test MemoryKind(typeof(s)) == NotMemory()
 end
 
 @testset "FixedSizeArrays" begin
@@ -925,7 +932,6 @@ end
         @test length(mem) == length(A)
         @test mem == vec(A)
         @test typeof(mem) == MutableMemoryView{eltype(A)}
-        @test MemoryKind(typeof(A)) == IsMemory(MutableMemoryView{eltype(A)})
     end
 end
 

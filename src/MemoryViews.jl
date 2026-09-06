@@ -3,10 +3,6 @@ module MemoryViews
 export MemoryView,
     ImmutableMemoryView,
     MutableMemoryView,
-    MemoryKind,
-    IsMemory,
-    NotMemory,
-    inner,
     split_each,
     unsafe_from_parts,
     unsafe_memoryref,
@@ -45,8 +41,6 @@ The parameter `M` controls the mutability of the memory view,
 and may be `Mutable` or `Immutable`, corresponding to the
 the aliases `MutableMemoryView{T}` and `ImmutableMemoryView{T}`.
 
-See also: `MemoryKind`
-
 # Examples
 ```jldoctest
 julia> v = view([1, 2, 3, 4], 2:3);
@@ -64,10 +58,6 @@ true
 New types `T` which are backed by dense memory should implement:
 * `MemoryView(x::T)` to construct a memory view from `x`. This should
    always return a `MutableMemoryView` when the memory of `x` is mutable.
-* `MemoryKind(x::T)`, if `T` is semantically equal to its own memory view.
-  Examples of this include `Vector`, `Memory`, and
-  `Base.CodeUnits{UInt8, String}`. If so, `x == MemoryView(x)` should hold.
-
 If `MemoryView(x)` is implemented, then `ImmutableMemoryView(x)` will
 automatically work, even if `MemoryView(x)` returns a mutable view.
 
@@ -173,64 +163,6 @@ end
 function MemoryView{T}(x) where {T}
     return MemoryView(x)::MemoryView{T}
 end
-
-"""
-    MemoryKind
-
-Trait object used to signal if values of a type is semantically equal to their own `MemoryView`.
-If so, `MemoryKind(T)` should return an instance of `IsMemory`,
-else `NotMemory()`. The default implementation `MemoryKind(::Type)` returns `NotMemory()`.
-
-If `MemoryKind(T) isa IsMemory{M}`, the following must hold:
-1. `M` is a concrete subtype of `MemoryView`. To obtain `M` from an `m::IsMemory{M}`,
-    use `inner(m)`.
-2. `MemoryView(::T)` is a valid instance of `M` (except in cases where there can be invalid
-   instances of `T` that instead errors, e.g. uninitialized instances).
-3. `MemoryView(x) == x` for all instances `x::T`
-
-Some objects can be turned into `MemoryView` without being `IsMemory`.
-For example, `MemoryView(::String)` returns a valid `MemoryView` even though
-`MemoryKind(String) === NotMemory()`.
-This is because strings have different semantics than memory views - the latter
-is a dense `AbstractArray` while strings are not, and so the fourth requirement
-`MemoryView(x::String) == x` does not hold.
-
-See also: [`MemoryView`](@ref)
-"""
-abstract type MemoryKind end
-
-"""
-    NotMemory <: MemoryKind
-
-See: [`MemoryKind`](@ref)
-"""
-struct NotMemory <: MemoryKind end
-
-"""
-    IsMemory{T <: MemoryView} <: MemoryKind
-
-See: [`MemoryKind`](@ref)
-"""
-struct IsMemory{T <: MemoryView} <: MemoryKind
-    function IsMemory{T}() where {T}
-        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
-        return new{T}()
-    end
-end
-IsMemory(T::Type{<:MemoryView}) = IsMemory{T}()
-
-"""
-    inner(::IsMemory{T})
-
-Return `T` from an `IsMemory{T}`.
-
-See: [`MemoryKind`](@ref)
-"""
-inner(::IsMemory{T}) where {T} = T
-
-MemoryKind(::Type) = NotMemory()
-MemoryKind(::Type{Union{}}) = NotMemory()
-MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
 include("construction.jl")
 include("basic.jl")
