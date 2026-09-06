@@ -58,6 +58,17 @@ end
     @test mem isa ImmutableMemoryView{UInt8}
     @test mem == [0x62, 0x63]
 
+    data = [1, 2]
+    mem = MemoryView(view(data, 2))
+    @test mem isa MutableMemoryView{Int}
+    @test mem == [2]
+    mem[1] = 3
+    @test data == [1, 3]
+
+    mem = MemoryView(view(codeunits("abc"), 2))
+    @test mem isa ImmutableMemoryView{UInt8}
+    @test mem == [0x62]
+
     for s in [view("", 1:0), view("abc", 4:3), view("abc", 10:2)]
         m = MemoryView(s)
         @test m isa ImmutableMemoryView{UInt8}
@@ -400,6 +411,7 @@ end
     @test !Base.mightalias(m2, m1)
     @test !Base.mightalias(m1, m1)
     @test !Base.mightalias(m2[1:0], m2)
+    @test Base.mightalias(MemoryView(v1), view(v1, 2))
 end
 
 @testset "Pointer" begin
@@ -1224,6 +1236,7 @@ end
     @test MemoryKind(Matrix{Nothing}) == NotMemory()
     @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
     @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
+    @test MemoryKind(typeof(view([1], 1))) == NotMemory()
 
     @test MemoryKind(ImmutableMemoryView{Dict}) == IsMemory(ImmutableMemoryView{Dict})
     @test MemoryKind(MutableMemoryView{UInt32}) == IsMemory(MutableMemoryView{UInt32})

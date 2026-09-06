@@ -107,7 +107,12 @@ end
 # We don't include strings here because this union is used for mightalias
 # checks, which are done implicitly, and we don't want to construct memory
 # views from strings implicitly, since that currently allocates.
-const KNOWN_MEM_BACKED = Union{Array, Memory, ContiguousSubArray}
+const KNOWN_MEM_BACKED = Union{
+    Array,
+    Memory,
+    ContiguousSubArray,
+    ZeroDimensionalSubArray,
+}
 
 function Base.mightalias(a::MemoryVector, b::KNOWN_MEM_BACKED)
     return Base.mightalias(a, ImmutableMemoryView(b))

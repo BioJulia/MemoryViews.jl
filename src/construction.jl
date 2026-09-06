@@ -38,22 +38,32 @@ MemoryView(s::Base.CodeUnits) = MemoryView(s.s)
 # This is quite tricky, because the indexing can be:
 # * <: AbstractUnitRange
 # * StepRange, with step == 1
-# * Integer (zero-dimensional along one axis)
 
 # It can also be multidimensional, but if so, all axes but the last one
 # must span the entire dimension.
 # And if so, we would need to compute the linear indices.
 
-# For now, I've only accepted 1-D views.
+# For now, only views with one parent index are accepted.
 const ContiguousSubArray = SubArray{
-    T, N, P, I, true,
-} where {T, N, P, I <: Union{Tuple{Integer}, Tuple{AbstractUnitRange}}}
+    T, 1, P, I, true,
+} where {T, P, I <: Tuple{AbstractUnitRange}}
 
-MemoryKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemoryKind(P)
+const ZeroDimensionalSubArray = SubArray{
+    T, 0, P, Tuple{I}, true,
+} where {T, P, I <: Integer}
 
-function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
+MemoryKind(::Type{<:ContiguousSubArray{T, P}}) where {T, P} = MemoryKind(P)
+
+function MemoryView(s::ContiguousSubArray{T, P}) where {T, P}
     memview = MemoryView(parent(s)::P)
     inds = only(parentindices(s))
     @boundscheck checkbounds_lightboundserror(memview.ref.mem, inds)
     return @inbounds memview[inds]
+end
+
+function MemoryView(s::ZeroDimensionalSubArray{T, P}) where {T, P}
+    memview = MemoryView(parent(s)::P)
+    ind = only(parentindices(s))
+    @boundscheck checkbounds_lightboundserror(memview.ref.mem, ind)
+    return @inbounds memview[ind:ind]
 end
