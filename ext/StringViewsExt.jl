@@ -1,9 +1,8 @@
 module StringViewsExt
 
 using StringViews: StringView
-import MemoryViews: MemoryView, MemoryKind
+import MemoryViews: MemoryView
 
 MemoryView(s::StringView) = MemoryView(codeunits(s))
-MemoryKind(::Type{StringView{A}}) where {A} = MemoryKind(A)
 
 end # module

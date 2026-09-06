@@ -31,13 +31,6 @@ Mutable and immutable memory views are statically distinguished, such that users
 can write methods that only take mutable memory views.
 This will statically prevent users from accidentally mutating e.g. strings.
 
-#### MemoryKind
-The MemoryKind trait is used because constructing a MemoryView only for dispatch purposes
-may not be able to be optimised away by the compiler for some types (currently, strings).
-
-MemoryKind could be replaced with a function that returned `nothing`, or the correct
-MemoryView type directly, but it's nicer to dispatch on `::MemoryKind` than on `::Union{Nothing, Type{<:MemoryView}}`.
-
 ## Limitations
 * Many optimised fast methods for more established types like `Vector` are missing for `MemoryView`.
   These are added over time. Please make an issue or a PR as you encounter missing methods.
@@ -54,7 +47,6 @@ MemoryView type directly, but it's nicer to dispatch on `::MemoryKind` than on `
 In `examples/alternative.jl`, there is an implementation where a `MemoryView` is just a pointer and a length.
 This makes it nearly identical to `Random.UnsafeView`, however, compared to `UnsafeView`, this proposal has:
 
-* The `MemoryKind` trait, useful to control dispatch to functions that can treat arrays _as being memory_
 * The distinction between mutable and immutable memory views
 
 Overall, I like the alternative proposal less. Raw pointers are bad for safety and ergonomics, and they interact

@@ -15,10 +15,10 @@ Obviously, writing the same implementation for each of these types is wasteful.
 Unfortunately, Julia's system of abstract types are poorly equipped to handle this.
 This is because abstract types represent shared _behaviour_, whereas in this case, what unites these many different types are the underlying _representation_ - exactly the thing that abstract types want to paper over!
 
-MemoryViews.jl addresses this by introducing two types: At the bottom of abstraction, the simple `MemoryView` type is most basic, unified instantiation of the underlying representation (a chunk of memory).
-At the top, the `MemoryKind` trait controls dispatch such that the low-level `MemoryView` implementation is called for the right types.
-The idea is that whenever you write a method that operates on "just" a chunk of memory, you implement it for `MemoryView`.
-Then, you write methods with `MemoryKind` to make sure all the proper function calls gets dispatched to your `MemoryView` implementation.
+MemoryViews.jl addresses this with the simple `MemoryView` type: a unified
+representation of a chunk of memory. Whenever a method operates on "just" a
+chunk of memory, implement it for `MemoryView`. Other supported input types can
+forward explicitly to that implementation.
 
 !!! tip
     Even if you only ever intend a method to work for, say, `Vector`, it can still be a good idea to implement it for `MemoryView`.
@@ -27,56 +27,27 @@ Then, you write methods with `MemoryKind` to make sure all the proper function c
     Second, you can implement the method for `ImmutableMemoryView`, letting both caller and callee know that the argument is not being mutated.
     Third, after implementing your method for `MemoryView`, it may be easy to also make your method work for `Memory` and other memory-backed types!
 
-## The `MemoryKind` trait
-`MemoryKind` answers the question: Can instances of a type be treated as equal to its own memory view?
-For a type `T`, `MemoryKind(T)` returns one of two types:
-* `NotMemory()` if `T`s are not equivalent to its own memory. Examples include `Int`, which has no memory representation because
-  they are not heap allocated, and `String`, which _are_ backed by memory, but which are semantically different from an `AbstractVector`
-  containing its bytes.
-* `IsMemory{M}()` where `M` is a concrete subtype of `MemoryView`, if instances of `T` _are_ equivalent to their own memory.
-  Examples include `Vector`s and `Codeunits{String}`. For these objects, it's the case that `x == MemoryView(x)`.
-
-```jldoctest
-julia> MemoryKind(Vector{Union{Int32, UInt32}})
-IsMemory{MutableMemoryView{Union{Int32, UInt32}}}()
-
-julia> MemoryKind(Matrix{String}) # dimension mismatch, not equal
-NotMemory()
-
-julia> MemoryKind(SubString{String})
-NotMemory()
-```
-
 ## Implementing `MemoryView` interfaces
-When implementing a method that has a fast-past for memory-like types, you typically want to
-* At the top level, dispatch on `MemoryKind` of your argument to funnel the memory-like objects into
-  your optimised `MemoryView` function
-* At the low level, use `MemoryView` for the implementation of the optimised version
+When implementing a method with a fast path for memory-backed types, define the
+optimized implementation on `MemoryView`. Add forwarding methods for each input
+type whose semantics are appropriate for your function, and retain a generic
+fallback when needed.
 
 An example could be:
 ```julia
-# Dispatch on `MemoryKind`
-my_hash(x) = my_hash(MemoryKind(typeof(x)), x)
-
-# For objects that are bytes, call the function taking only the memory
-# representation of `x`
-my_hash(::IsMemory{<:MemoryView{UInt8}}, x) = my_hash(ImmutableMemoryView(x))
-
-# IsMemory with eltype other than UInt8 can't use the fast low-level function
-my_hash(::IsMemory, x) = my_hash(NotMemory(), x)
-
-function my_hash(::NotMemory, x)
-    # fallback implementation
-end
-
 function my_hash(mem::ImmutableMemoryView{UInt8})
     # some optimised low-level memory manipulation with `mem` of bytes
 end
 
-# Handle e.g. strings separately, since they are not semantically equal to
-# an array of elements in memory, but for this method in particular,
-# we want to treat strings as if they are.
-function my_hash(x::Union{String, SubString{String}})
-    my_hash(MemoryView(x))
-end
+# Forward types supported by this operation.
+my_hash(x::Union{Vector{UInt8}, Memory{UInt8}}) = my_hash(ImmutableMemoryView(x))
+my_hash(x::Union{String, SubString{String}}) = my_hash(ImmutableMemoryView(x))
+
+# Generic fallback.
+my_hash(x) = generic_hash(x)
 ```
+
+This explicit dispatch is useful because having a `MemoryView` constructor does
+not by itself mean that an object has the same semantics as its memory
+representation. For example, a `String` can be viewed as bytes, but is not an
+`AbstractVector{UInt8}`.
