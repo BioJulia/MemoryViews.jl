@@ -408,7 +408,7 @@ function Base.cmp(
     else
         Cint(0)
     end
-    return iszero(y) ? sign(length(a) - length(b)) : Int(y)
+    return iszero(y) ? sign(length(a) - length(b)) : Int(sign(y))
 end
 
 function Base.reverse!(mem::MutableMemoryVector)

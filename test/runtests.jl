@@ -783,8 +783,10 @@ end
                 ([0x02, 0x03, 0x01], [0x02, 0x03], 1),
                 ([0x9f], [0x9f], 0),
                 ([0x01, 0x03, 0x02], [0x01, 0x04], -1),
+                ([0xff], [0x00], 1),
+                ([0x00], [0xff], -1),
             ]
-            @test cmp(MemoryView(a), MemoryView(b)) == y
+            @test @inferred(cmp(MemoryView(a), MemoryView(b))) === y
         end
     end
 
