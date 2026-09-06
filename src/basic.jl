@@ -78,28 +78,16 @@ Base.elsize(::Type{<:MemoryVector{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryVector) = Base.elsize(typeof(x)) * length(x)
 Base.strides(@nospecialize(::MemoryVector)) = (1,)
 
-# For two distinct element types, they can't alias
-function Base.mightalias(
-        @nospecialize(a::MemoryVector),
-        @nospecialize(b::MemoryVector),
-    )
-    return false
-end
-
-function Base.mightalias(
-        a::MemoryVector{T},
-        b::MemoryVector{T},
-    ) where {T}
+function Base.mightalias(a::MemoryVector, b::MemoryVector)
     (isempty(a) | isempty(b)) && return false
     # We can't compare the underlying Memory with === to add a fast path here,
     # because users can create aliasing, but distinct Memory using unsafe_wrap.
     GC.@preserve a b begin
-        (p1, p2) = (pointer(a), pointer(b))
-        elz = Base.elsize(a)
+        (p1, p2) = (Ptr{UInt8}(pointer(a)), Ptr{UInt8}(pointer(b)))
         return if p1 < p2
-            p1 + length(a) * elz > p2
+            p1 + sizeof(a) > p2
         else
-            p2 + length(b) * elz > p1
+            p2 + sizeof(b) > p1
         end
     end
 end

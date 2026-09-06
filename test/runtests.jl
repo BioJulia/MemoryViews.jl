@@ -398,13 +398,32 @@ end
     @test Base.mightalias(MemoryView(v1)[2:2], v1)
     @test Base.mightalias(view(v1, 2:3), MemoryView(v1))
 
-    # Different element types can never alias
+    # Distinct allocations with different element types don't alias
     @test !Base.mightalias(MemoryView(Int[1, 2]), MemoryView(UInt[1, 2]))
     @test !Base.mightalias(MemoryView(UInt8[1]), MemoryView(Int8[1]))
     @test !Base.mightalias(MemoryView(Float32[1.0]), MemoryView(Int32[1]))
     @test !Base.mightalias(ImmutableMemoryView(Int[1]), MemoryView(UInt[1]))
 
-    # Empty views of the same type never alias
+    # Aliasing is determined from byte ranges, even when element types differ
+    storage = collect(UInt8, 1:16)
+    GC.@preserve storage begin
+        signed = MemoryView(
+            unsafe_wrap(Memory{Int8}, Ptr{Int8}(pointer(storage)), length(storage))
+        )
+        words = MemoryView(
+            unsafe_wrap(Memory{UInt16}, Ptr{UInt16}(pointer(storage)), length(storage) ÷ 2)
+        )
+        bytes = MemoryView(storage)
+
+        @test Base.mightalias(bytes, signed)
+        @test Base.mightalias(signed, bytes)
+        @test !Base.mightalias(bytes[2:2], words[2:3])
+        @test Base.mightalias(bytes[3:3], words[2:3])
+        @test Base.mightalias(bytes[6:6], words[2:3])
+        @test !Base.mightalias(bytes[7:7], words[2:3])
+    end
+
+    # Empty views never alias
     m1 = MemoryView(Int[])
     m2 = MemoryView([1, 2, 3])
     @test !Base.mightalias(m1, m2)
