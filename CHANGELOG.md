@@ -8,7 +8,10 @@ not be mentioned here, because they do not impact how the package is to be used.
 ### Breaking changes
 * `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
   This method was unsafe, and so has been removed.
-  To get a `MemoryRef` from `ImmutableMemory`, use the new `unsafe_memoryref` function.
+  To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
+* Removed the `MemoryKind` interface, including the `IsMemory` and `NotMemory`
+  types and the `inner(::IsMemory)` function. Dispatch directly on `MemoryView`
+  instead.
 
 ## 0.4.4
 ### Added

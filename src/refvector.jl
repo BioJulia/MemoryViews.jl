@@ -83,8 +83,6 @@ function MemoryView{T}(v::RefVector{T}, len::Int) where {T}
 end
 
 MemoryView(v::RefVector{T}) where {T} = @inbounds MemoryView{T}(v, length(v))
-MemoryKind(::Type{<:RefVector{T}}) where {T} = IsMemory(MutableMemoryView{T})
-
 Base.size(v::RefVector) = (length(v),)
 
 function Base.length(v::RefVector)
