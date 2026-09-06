@@ -88,6 +88,3 @@ Various fixes and optimizations.
 * Add functions `split_first`, `split_last`, `split_at` and `split_unaligned`
 * Add a more correct implementation of `Base.mightalias` for memory views and
   some types of arrays
-
-
-

@@ -5,8 +5,11 @@
 function Base.readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer = length(v))
     nb = Int(nb)::Int
     nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
+
+    nb = min(nb, length(v))
+
     # A view of all the bytes not yet read
-    remaining = @inbounds v[1:min(nb, length(v))]
+    remaining = @inbounds v[1:nb]
     while !isempty(remaining)
         eof(io) && break
         # Read at least 1 byte if not EOF, thereby filling the internal buffer.
@@ -15,5 +18,5 @@ function Base.readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer = le
         GC.@preserve v unsafe_read(io, Base.unsafe_convert(Ptr{UInt8}, remaining), ba % UInt)
         remaining = remaining[(ba + 1):end]
     end
-    return min(nb, length(v) - length(remaining))
+    return nb - length(remaining)
 end

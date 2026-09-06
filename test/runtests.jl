@@ -1089,13 +1089,22 @@ end
     buf = IOBuffer(data)
     v = fill(0xaa, 25)
     @test readbytes!(buf, MemoryView(v), 7) == 7
-    @test v[1:8] == b"Hello, \xaa"
+    @test position(buf) == 7
+    @test v == vcat(b"Hello, ", fill(0xaa, 18))
+
+    # With EOF before nb and nb lower than the vector length
+    data = b"abc"
+    buf = IOBuffer(data)
+    v = fill(0xaa, 25)
+    @test readbytes!(buf, MemoryView(v), 7) == 3
+    @test v == vcat(data, fill(0xaa, 22))
 
     # With nb being higher than the vector length
     data = b"Hello, world!"
     buf = IOBuffer(data)
     v = fill(0xaa, 8)
-    readbytes!(buf, MemoryView(v), 10)
+    @test readbytes!(buf, MemoryView(v), 10) == 8
+    @test position(buf) == 8
     @test v == b"Hello, w"
 
     # Negative nb is invalid
