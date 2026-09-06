@@ -9,6 +9,7 @@ makedocs(;
         "MemoryViews" => "index.md",
         "MemoryViews in interfaces" => "interfaces.md",
         "MemoryViews in Base" => "base.md",
+        "Migrating from 0.4 to 0.5" => "migration.md",
         "Reference" => "reference.md",
     ],
     authors = "Jakob Nybo Nissen",
