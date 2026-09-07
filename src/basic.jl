@@ -17,9 +17,30 @@ end
 # The parent method for memoryref was added in 1.12. In versions before that,
 # it can be accessed by reaching into internals.
 @static if VERSION < v"1.12.0-DEV.966"
-    Base.parent(@nospecialize(v::MemoryVector)) = v.ref.mem
+    Base.parent(@nospecialize(v::RefVector)) = v.ref.mem
 else
-    Base.parent(@nospecialize(v::MemoryVector)) = parent(v.ref)
+    Base.parent(@nospecialize(v::RefVector)) = parent(v.ref)
+end
+
+"""
+    parent(v::T)::T where {T <: MemoryView}
+
+Get a `MemoryView` of the same type as `v`, encompassing the entire
+underlying `Memory`.
+
+```jldoctest
+julia> mem = ImmutableMemoryView([1, 2, 3])[2:3];
+
+julia> parent(mem)
+3-element ImmutableMemoryView{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function Base.parent(@nospecialize(v::MemoryView))
+    mem = unsafe_memory(v)
+    return unsafe_new_memoryview(_get_mutability(v), memoryref(mem), length(mem))
 end
 
 Base.size(@nospecialize(v::MemoryView)) = (v.len,)
@@ -73,7 +94,8 @@ end
 Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
 Base.pointer(x::MemoryVector{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryVector{T}) where {T} = pointer(v)
-Base.cconvert(::Type{<:Ptr{T}}, v::MemoryVector{T}) where {T} = v.ref
+Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v
+Base.cconvert(::Type{<:Ptr{T}}, v::RefVector{T}) where {T} = v.ref
 Base.elsize(::Type{<:MemoryVector{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryVector) = Base.elsize(typeof(x)) * length(x)
 Base.strides(@nospecialize(::MemoryVector)) = (1,)
