@@ -536,11 +536,13 @@ function split_at(v::MemoryView, i::Int)
 end
 
 """
-    split_unaligned(v::T, ::Val{A}) -> Tuple{T, T} where {T <: MemoryView}
+    split_unaligned(v::T, alignment::Integer) -> Tuple{T, T} where {T <: MemoryView}
+    split_unaligned(v::T, ::Val{alignment}) -> Tuple{T, T} where {T <: MemoryView}
 
 Split memory view `v` into two views `a` and `b`, where `a` is the smallest prefix of `v`
-that guarantees the starting memory address of `b` is is aligned to the integer value `A`.
-`A` must be a normal bit-integer, and a power of two in the range 1:64.
+that guarantees the starting memory address of `b` is aligned to `alignment` bytes.
+`alignment` must be a power of two in the range 1:64.
+The `Val` form allows the compiler to optimize for a statically known alignment.
 
 If `v` is empty or already aligned, `a` will be empty.
 If no elements of `v` is aligned, `b` will be empty and `a` will be equal to `v`.
@@ -554,18 +556,17 @@ If `b` has no elements, no alignment is guaranteed about the empty `b`.
 
 # Examples:
 ```julia
-julia> split_unaligned(MemoryView(Int16[1, 2, 3]), Val(8))
+julia> split_unaligned(MemoryView(Int16[1, 2, 3]), 8)
 (Int16[], Int16[1, 2, 3])
 
-julia> split_unaligned(MemoryView(collect(0x01:0x20))[6:13], Val(8))
+julia> split_unaligned(MemoryView(collect(0x01:0x20))[6:13], 8)
 (UInt8[0x06, 0x07, 0x08], UInt8[0x09, 0x0a, 0x0b, 0x0c, 0x0d])
 ```
 """
-function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
+function split_unaligned(v::MemoryView{T, M}, alignment::Integer) where {T, M}
     isbitstype(eltype(v)) || error("Alignment can only be computed for views of bitstypes")
-    A isa Bits || error("Invalid alignment")
-    in(A, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
-    alignment = A % UInt
+    in(alignment, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
+    alignment = alignment % UInt
     mask = alignment - 1
     sz = element_aligned_sizeof(T) % UInt
     # Early return here to avoid division by zero: Size sz is statically known,
@@ -597,3 +598,5 @@ function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
     end
     return @inbounds split_at(v, n_elements + 1)
 end
+
+@inline split_unaligned(v::MemoryView, ::Val{A}) where {A} = split_unaligned(v, A)

@@ -883,41 +883,50 @@ end
         @test_throws LightBoundsError split_at(mem, 2)
     end
 
-    @testset "Split unaligned" begin
+    @testset "Split unaligned ($alignment)" for alignment in (identity, Val)
         for v in Any[["abc", "def"], Union{Int, UInt}[1, 2, 3, 4], Signed[4, 1, 2]]
-            @test_throws Exception split_unaligned(MemoryView(v), Val(1))
+            @test_throws Exception split_unaligned(MemoryView(v), alignment(1))
         end
         v = MemoryView(collect(0x00:0x3f))[2:end]
-        @test_throws Exception split_unaligned(v, Val(3))
-        @test_throws Exception split_unaligned(v, Val(0))
-        @test_throws Exception split_unaligned(v, Val(-2))
+        @test_throws Exception split_unaligned(v, alignment(3))
+        @test_throws Exception split_unaligned(v, alignment(0))
+        @test_throws Exception split_unaligned(v, alignment(-2))
+        @test_throws Exception split_unaligned(v, alignment(128))
 
-        @test split_unaligned(v, Val(1)) == split_at(v, 1)
-        @test split_unaligned(v, Val(4)) == split_at(v, 4)
-        @test split_unaligned(v, Val(8)) == split_at(v, 8)
-        @test split_unaligned(v, Val(16)) == split_at(v, 16)
+        for T in (Int8, UInt8, Int128, UInt128)
+            @test @inferred(split_unaligned(v, alignment(T(8)))) == split_at(v, 8)
+        end
+        if alignment === identity
+            @test split_unaligned(v, big(8)) == split_at(v, 8)
+            @test_throws Exception split_unaligned(v, big(2)^128 + 8)
+        end
+
+        @test split_unaligned(v, alignment(1)) == split_at(v, 1)
+        @test split_unaligned(v, alignment(4)) == split_at(v, 4)
+        @test split_unaligned(v, alignment(8)) == split_at(v, 8)
+        @test split_unaligned(v, alignment(16)) == split_at(v, 16)
 
         v = v[2:4]
-        @test split_unaligned(v, Val(16)) == split_at(v, length(v) + 1)
-        @test split_unaligned(v, Val(8)) == split_at(v, length(v) + 1)
+        @test split_unaligned(v, alignment(16)) == split_at(v, length(v) + 1)
+        @test split_unaligned(v, alignment(8)) == split_at(v, length(v) + 1)
 
         v = MemoryView(collect(0x0000:0x003f))[3:end]
-        @test split_unaligned(v, Val(1)) == split_at(v, 1)
-        @test split_unaligned(v, Val(4)) == split_at(v, 1)
-        @test split_unaligned(v, Val(8)) == split_at(v, 3)
-        @test split_unaligned(v, Val(16)) == split_at(v, 7)
+        @test split_unaligned(v, alignment(1)) == split_at(v, 1)
+        @test split_unaligned(v, alignment(4)) == split_at(v, 1)
+        @test split_unaligned(v, alignment(8)) == split_at(v, 3)
+        @test split_unaligned(v, alignment(16)) == split_at(v, 7)
 
         mem = MemoryView(fill((0x01, 0x02, 0x03), 10))
         @test UInt(pointer(mem)) % 8 == 0
         v = mem[2:7]
-        @test split_unaligned(v, Val(8)) == split_at(v, length(v) + 1)
+        @test split_unaligned(v, alignment(8)) == split_at(v, length(v) + 1)
         v = mem[3:end]
-        @test split_unaligned(v, Val(8)) == split_at(v, 7)
+        @test split_unaligned(v, alignment(8)) == split_at(v, 7)
 
         mem = MemoryView(Memory{ThreeBytePrimitive}(undef, 4))
         @test MemoryViews.element_aligned_sizeof(ThreeBytePrimitive) == Base.elsize(mem)
         @test UInt(pointer(mem)) % 8 == 0
-        (prefix, suffix) = split_unaligned(mem[2:end], Val(8))
+        (prefix, suffix) = split_unaligned(mem[2:end], alignment(8))
         @test length(prefix) == 1
         @test length(suffix) == 2
         @test UInt(pointer(suffix)) % 8 == 0
