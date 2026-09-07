@@ -768,12 +768,19 @@ end
 
 @testset "Iterators.reverse" begin
     for v in Any[AbstractString["abc", "def", ""], Char['a', 'b'], UInt32[], Int16[9, 2, 1]]
-        mem = MemoryView(v)
-        it = Iterators.reverse(mem)
-        @test length(it) == length(mem)
-        @test collect(it) == reverse(mem)
-        @test Iterators.reverse(it) === ImmutableMemoryView(mem)
+        for mem in (MemoryView(v), ImmutableMemoryView(v))
+            it = Iterators.reverse(mem)
+            @test length(it) == length(mem)
+            @test eltype(it) === eltype(mem)
+            @test collect(it) == reverse(mem)
+            @test Iterators.reverse(it) === mem
+        end
     end
+
+    v = [1, 2, 3]
+    mem = Iterators.reverse(Iterators.reverse(MemoryView(v)))
+    mem[2] = 4
+    @test v == [1, 4, 3]
 end
 
 @testset "split_each" begin
