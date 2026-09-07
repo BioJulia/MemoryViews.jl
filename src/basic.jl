@@ -419,18 +419,17 @@ function Base.reverse(mem::MemoryView)
     end
 end
 
-struct ReverseMemoryView{T}
-    # I can't think of a reason to allow mutable memory views here
-    mem::ImmutableMemoryView{T}
+struct ReverseMemoryView{T, M <: Union{Mutable, Immutable}}
+    mem::MemoryView{T, M}
 end
 
-function Iterators.reverse(mem::MemoryView{T}) where {T}
-    return ReverseMemoryView{T}(ImmutableMemoryView(mem))
+function Iterators.reverse(mem::MemoryView)
+    return ReverseMemoryView(mem)
 end
 Iterators.reverse(@nospecialize(x::ReverseMemoryView)) = x.mem
 
 Base.length(@nospecialize(x::ReverseMemoryView)) = length(x.mem)
-Base.eltype(::Type{ReverseMemoryView{T}}) where {T} = T
+Base.eltype(::Type{ReverseMemoryView{T, M}}) where {T, M} = T
 
 function Base.iterate(x::ReverseMemoryView, state = length(x))
     iszero(state) && return nothing
