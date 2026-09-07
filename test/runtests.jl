@@ -833,6 +833,14 @@ end
     @test eltype(it) == MutableMemoryView{String}
     @test it isa DelimitedIterator{String, Mutable}
 
+    it = split_each(AbstractString["a", "b"], "")
+    @test eltype(it) == MutableMemoryView{AbstractString}
+    @test it isa DelimitedIterator{AbstractString, Mutable, String}
+    @test collect(it) == [["a", "b"]]
+    @test collect(split_each(AbstractString["", "a", "", "b", ""], "")) == [[], ["a"], ["b"], []]
+    @test collect(split_each(Union{Int, Nothing}[1, nothing, 2], nothing)) == [[1], [2]]
+    @test_throws ErrorException split_each([1, 2], 1.0)
+
     @test collect(split_each(b"", 0x00)) == ImmutableMemoryView{UInt8}[]
     @test collect(split_each([1, 2, 3, 3, 4, 5, 2, 3], 3)) == [[1, 2], [], [4, 5, 2], []]
     @test collect(split_each(String[], "")) == String[]
