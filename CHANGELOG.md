@@ -6,6 +6,10 @@ not be mentioned here, because they do not impact how the package is to be used.
 
 ## 0.5.0
 ### Breaking changes
+* `DelimitedIterator{T, M}` is now `DelimitedIterator{T, M, D}`, where `D` is
+  the delimiter type. `split_each(data, d)` now accepts any delimiter satisfying
+  `d isa eltype(MemoryView(data))`, including concrete delimiters for abstract
+  element types.
 * `Iterators.reverse` now preserves the mutability of its input `MemoryView`.
   Applying it twice returns the original view, rather than always returning an
   `ImmutableMemoryView`.

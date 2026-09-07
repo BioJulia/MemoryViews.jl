@@ -2,13 +2,13 @@
 Iterator struct created by `split_each`.
 Type and parameters are public, but otherwise the interface is defined by `split_each`, 
 """
-struct DelimitedIterator{T, M}
+struct DelimitedIterator{T, M, D}
     v::MemoryView{T, M}
-    d::T
+    d::D
 end
 
 Base.IteratorSize(::Type{<:DelimitedIterator}) = Base.SizeUnknown()
-Base.eltype(::Type{DelimitedIterator{T, M}}) where {T, M} = MemoryView{T, M}
+Base.eltype(::Type{<:DelimitedIterator{T, M}}) where {T, M} = MemoryView{T, M}
 
 function Base.iterate(d::DelimitedIterator, state::Int = 1)
     len = length(d.v)
@@ -36,6 +36,7 @@ end
 Return an iterator over memory-backed data `data` of eltype `T`.
 Returns `MemoryView`s of the same elements as `data`, separated by by `x`.
 Items are compared by `isequal`.
+The delimiter `x` must satisfy `x isa T`.
 
 An empty input `data` yields no elements. Empty elements are otherwise
 yielded.
@@ -52,9 +53,10 @@ julia> split_each(UInt8[], UInt8('b')) |> collect |> print
 MutableMemoryView{UInt8}[]
 ```
 """
-function split_each(x, d::T) where {T}
+function split_each(x, d::D) where {D}
     v = MemoryView(x)::MemoryView
-    eltype(v) == T || error("MemoryView(x) must be of eltype T")
+    T = eltype(v)
+    d isa T || error("Delimiter must be an instance of eltype(MemoryView(x))")
     M = _get_mutability(v)
-    return DelimitedIterator{T, M}(v, d)
+    return DelimitedIterator{T, M, D}(v, d)
 end
