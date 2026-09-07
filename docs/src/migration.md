@@ -7,6 +7,24 @@ CurrentModule = MemoryViews
 This page lists the breaking changes in MemoryViews 0.5 and how to update code
 written for MemoryViews 0.4.
 
+## Delimiter type parameter
+
+`DelimitedIterator{T, M}` now has a third type parameter,
+`DelimitedIterator{T, M, D}`, which stores the delimiter's type separately from
+the input element type `T`. `split_each(data, d)` now checks
+`d isa eltype(MemoryView(data))` instead of requiring exact type equality.
+For example, this previously rejected input now works:
+
+```julia
+collect(split_each(AbstractString["a", "b"], "")) # [["a", "b"]]
+```
+
+Code using `split_each` needs no changes. Dispatch on
+`DelimitedIterator{T, M}` still matches all delimiter types. If constructing the
+iterator directly with explicit type parameters, replace
+`DelimitedIterator{T, M}(view, d)` with
+`DelimitedIterator{T, M, typeof(d)}(view, d)`, or use `split_each(view, d)`.
+
 ## Reverse iteration preserves mutability
 
 `Iterators.reverse` now stores the original `MemoryView`, preserving its
