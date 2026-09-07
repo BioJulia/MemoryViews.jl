@@ -30,11 +30,13 @@ MUT_BACKINGS = Any[
 @testset "Mutability" begin
     for mut in MUT_BACKINGS
         @test MemoryView(mut) isa MutableMemoryView
+        @test MutableMemoryView(mut) === MemoryView(mut)
     end
 
     for immut in
         Any["abc", codeunits("abcd"), view("adskd", 2:4), codeunits(view("dsaas", 1:3))]
         @test MemoryView(immut) isa ImmutableMemoryView
+        @test_throws ArgumentError MutableMemoryView(immut)
     end
 
     for nonmem in [nothing, missing, 5, (1, 3, 5), view([1, 2, 3, 4], 1:2:3)]
@@ -53,6 +55,10 @@ end
 @testset "More construction" begin
     mem = MemoryView([1, 2, 3])
     @test MemoryView(mem) === mem
+    @test MutableMemoryView(mem) === mem
+    @test_throws ArgumentError MutableMemoryView(ImmutableMemoryView(mem))
+    @test_throws ArgumentError MutableMemoryView(ImmutableMemoryView(Int[]))
+    @test_throws ArgumentError MutableMemoryView{UInt8}("abc")
 
     mem = MemoryView(view("abc", 2:3))
     @test mem isa ImmutableMemoryView{UInt8}
@@ -81,8 +87,10 @@ end
 
     x = [1, 2, 3]
     @test MemoryView{Int}(x) isa MutableMemoryView{Int}
+    @test MutableMemoryView{Int}(x) === MemoryView(x)
     @test ImmutableMemoryView{Int}(x) isa ImmutableMemoryView{Int}
     @test_throws TypeError MemoryView{UInt32}(x)
+    @test_throws TypeError MutableMemoryView{UInt32}(x)
     @test_throws TypeError ImmutableMemoryView{UInt32}(x)
 end
 

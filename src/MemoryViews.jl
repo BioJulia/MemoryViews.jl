@@ -71,6 +71,8 @@ New types `T` which are backed by dense memory should implement:
 
 If `MemoryView(x)` is implemented, then `ImmutableMemoryView(x)` will
 automatically work, even if `MemoryView(x)` returns a mutable view.
+`MutableMemoryView(x)` also works, but throws an `ArgumentError` if
+`MemoryView(x)` returns an immutable view.
 
 It is not possible to mutate memory though an `ImmutableMemoryView`, but the existence
 of the view does not protect the same memory from being mutated though another
@@ -140,6 +142,12 @@ end
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
 # Mutable mem views can turn into immutable ones, but not vice versa
+function MutableMemoryView(x)
+    v = MemoryView(x)::MemoryView
+    v isa MutableMemoryView || throw(ArgumentError("Cannot construct a mutable memory view from an immutable view"))
+    return v
+end
+
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
 function ImmutableMemoryView(x::MemoryView)
     return unsafe_new_memoryview(Immutable, x.ref, x.len)
