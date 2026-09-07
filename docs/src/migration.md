@@ -7,6 +7,23 @@ CurrentModule = MemoryViews
 This page lists the breaking changes in MemoryViews 0.5 and how to update code
 written for MemoryViews 0.4.
 
+## Reverse iteration preserves mutability
+
+`Iterators.reverse` now stores the original `MemoryView`, preserving its
+mutability. Applying it twice returns the original view; previously, the result
+was always an `ImmutableMemoryView`, even for mutable input.
+
+```julia
+view = MemoryView([1, 2, 3])
+restored = Iterators.reverse(Iterators.reverse(view))
+restored === view # true
+restored[1] = 4 # Mutates the original backing array
+```
+
+If code relied on the result being immutable, convert it explicitly with
+`ImmutableMemoryView(restored)`. Immutable inputs still return the original
+immutable view after reversing twice.
+
 ## Accessing the `MemoryRef` of an immutable view
 
 `Base.memoryref(::ImmutableMemoryView)` has been removed. The returned

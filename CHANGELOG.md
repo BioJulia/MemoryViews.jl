@@ -6,6 +6,9 @@ not be mentioned here, because they do not impact how the package is to be used.
 
 ## 0.5.0
 ### Breaking changes
+* `Iterators.reverse` now preserves the mutability of its input `MemoryView`.
+  Applying it twice returns the original view, rather than always returning an
+  `ImmutableMemoryView`.
 * `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
   This method was unsafe, and so has been removed.
   To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
