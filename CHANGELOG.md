@@ -9,6 +9,13 @@ not be mentioned here, because they do not impact how the package is to be used.
 * `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
   This method was unsafe, and so has been removed.
   To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
+* Removed `parent(::ImmutableMemoryView)`, which exposed mutable backing memory
+  from a read-only view. `parent(::MutableMemoryView)` remains available.
+* `Base.cconvert(::Type{<:Ptr}, ::MemoryView)` now returns the input view.
+  Use `Base.unsafe_convert` or `pointer` to obtain a pointer.
+* The `MemoryView` fields and exact representation are now explicitly internal
+  API. The type remains immutable and the same size as a `MemoryRef` and an
+  `Int` combined.
 * Removed the `MemoryKind` interface, including the `IsMemory` and `NotMemory`
   types and the `inner(::IsMemory)` function. Dispatch directly on `MemoryView`
   instead.
@@ -89,4 +96,3 @@ Various fixes and optimizations.
 * Add functions `split_first`, `split_last`, `split_at` and `split_unaligned`
 * Add a more correct implementation of `Base.mightalias` for memory views and
   some types of arrays
-

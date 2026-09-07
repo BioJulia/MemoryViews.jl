@@ -42,7 +42,7 @@ MUT_BACKINGS = Any[
     @testset "Unsafe mutability" begin
         v = [1.0, 2.0, 3.0]
         m = ImmutableMemoryView(v)
-        m2 = unsafe_from_parts(m.ref, 3)
+        m2 = unsafe_from_parts(unsafe_memoryref(m), 3)
         m2[2] = 5.0
         @test v == [1.0, 5.0, 3.0]
     end
@@ -99,6 +99,7 @@ end
     @test_throws MethodError MemoryView(view(a, 1, :, 1))
     @test_throws MethodError MemoryView(view(a, 1:2, :, 1))
 
+    @test MemoryView(view([1])) == [1]
     @test MemoryView(view(UInt8[0x61], 1)) == UInt8[0x61]
     @test MemoryView(view(b"abcde", Base.IdentityUnitRange(2:4))) == b"bcd"
 
@@ -174,9 +175,15 @@ end
     for mem in Any[MemoryView([1, 2, 3]), MemoryView("abc"), MemoryView(Float32[1.0])]
         @test strides(mem) === (1,)
         @test IndexStyle(typeof(mem)) === Base.IndexLinear()
-        @test Base.elsize(typeof(mem)) === Base.elsize(typeof(parent(mem)))
+        @test Base.elsize(typeof(mem)) === Base.elsize(Memory{eltype(mem)})
     end
     @test strides(MemoryView(Int[])) === (1,)
+
+    for M in (Mutable, Immutable)
+        T = MemoryView{Int, M}
+        @test !ismutabletype(T)
+        @test sizeof(T) == sizeof(MemoryRef{Int}) + sizeof(Int)
+    end
 end
 
 # Span of views
@@ -385,7 +392,7 @@ end
 @testset "memoryref" begin
     mem = MemoryView([10, 20, 30])[2:3]
     ref = memoryref(mem)
-    @test ref === mem.ref
+    @test ref isa MemoryRef{Int}
     @test memoryref(ref, 1)[] === 20
     @test memoryref(ref, 2)[] === 30
 
@@ -393,7 +400,7 @@ end
     @test_throws MethodError memoryref(imm)
 
     ref = unsafe_memoryref(imm)
-    @test ref === imm.ref
+    @test ref isa MemoryRef{UInt8}
     @test memoryref(ref, 1)[] === UInt8('b')
     @test memoryref(ref, 2)[] === UInt8('c')
 
@@ -402,6 +409,34 @@ end
     ref = unsafe_memoryref(imm)
     memoryref(ref, 1)[] = 50
     @test backing == [10, 50, 30]
+end
+
+@testset "unsafe_memory" begin
+    for mem in (Memory{Int}([1, 2, 3]), Memory{String}(["a", "b", "c"]), Memory{Nothing}(undef, 3))
+        for full in (MemoryView(mem), ImmutableMemoryView(mem))
+            for inds in (1:3, 2:3, 2:1, 4:3)
+                v = full[inds]
+                @test (@inferred unsafe_memory(v)) === mem
+            end
+        end
+    end
+
+    mem = Memory{Int}()
+    for v in (MemoryView(mem), ImmutableMemoryView(mem))
+        @test (@inferred unsafe_memory(v)) === mem
+    end
+
+    v = MemoryView([1, 2, 3])[2:3]
+    unsafe_memory(v)[2] = 4
+    @test v[1] == 4
+    v[2] = 5
+    @test unsafe_memory(v)[3] == 5
+
+    full = MemoryView("abcd")
+    mem = @inferred unsafe_memory(full[2:3])
+    @test mem isa Memory{UInt8}
+    @test mem == codeunits("abcd")
+    @test mem === unsafe_memory(full)
 end
 
 @testset "Misc functions" begin
@@ -420,7 +455,7 @@ end
         @test mem == [9, 3, 4]
         @test mem2 == [2, 10, 4]
         # Only makes a copy of the needed data
-        @test length(mem2.ref.mem) == length(mem2)
+        @test length(parent(mem2)) == length(mem2)
     end
 
     @testset "Parentindices" begin
@@ -530,7 +565,7 @@ end
             mem = MemoryView(v)
             rev = reverse(mem)
             @test typeof(rev) == typeof(mem)
-            @test rev.ref != mem.ref
+            @test memoryref(rev) != memoryref(mem)
             @test rev == reverse(v)
             @test_throws Exception reverse!(ImmutableMemoryView(v))
         end
@@ -554,11 +589,29 @@ end
     end
 
     @testset "Parent" begin
-        mem = Memory{UInt16}(undef, 3)
+        mem = Memory{UInt16}([1, 2, 3])
         vec = Base.wrap(Array, mem, (3,))
         v = MemoryView(vec)
-        @test parent(v) === mem
-        @test parent(ImmutableMemoryView(mem)) === mem
+        @test parent(v) === v
+        imm = ImmutableMemoryView(mem)
+        @test parent(imm) === imm
+        for full in (v, imm), inds in (1:3, 2:3, 2:1, 4:3)
+            sliced = full[inds]
+            p = parent(sliced)
+            @test typeof(p) === typeof(sliced)
+            @test p === full
+            @test p == mem
+            @test unsafe_memoryref(p) === memoryref(mem)
+        end
+        for full in (MemoryView(Memory{UInt16}()), ImmutableMemoryView(Memory{UInt16}()))
+            @test parent(full) === full
+        end
+        parent(v[2:3])[1] = 4
+        @test mem[1] == 4
+        @test_throws CanonicalIndexError parent(imm[2:3])[1] = 5
+        @static if VERSION >= v"1.12.0-DEV.966"
+            @test parent(unsafe_memoryref(imm)) === mem
+        end
     end
 
     @testset "Truncate" begin
@@ -838,13 +891,16 @@ end
 
 @testset "Base arrays" begin
     @testset "Memory construction" begin
-        v = ImmutableMemoryView([5, 2, 1])
+        backing = [5, 2, 1]
+        v = ImmutableMemoryView(backing)
         @test Memory(v) isa Memory{Int}
         @test Memory(v) == v
 
-        @test Memory{Int}(v) isa Memory{Int}
-        @test Memory{Int}(v) == v
-        @test Memory{Int}(v) !== parent(v)
+        copied = Memory{Int}(v)
+        @test copied isa Memory{Int}
+        @test copied == v
+        copied[1] = 10
+        @test backing == [5, 2, 1]
 
         @test isempty(Memory{Int}(v[1:0]))
     end
@@ -901,7 +957,11 @@ end
     @test mem isa MutableMemoryView{Int}
 
     v2 = MemoryView([3, 1, 4])
-    @test Base.cconvert(Ptr{Int}, v2) === v2.ref
+    converted = Base.cconvert(Ptr{Int}, v2)
+    @test converted === v2
+    GC.@preserve converted begin
+        @test Base.unsafe_convert(Ptr{Int}, converted) === pointer(v2)
+    end
 end
 
 @testset "StringViews" begin

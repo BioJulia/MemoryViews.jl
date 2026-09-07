@@ -6,6 +6,7 @@ export MemoryView,
     split_each,
     unsafe_from_parts,
     unsafe_memoryref,
+    unsafe_memory,
     split_first,
     split_last,
     split_at,
@@ -70,6 +71,9 @@ This includes the fact that some elements in the array, such as  `String`s,
 may be stored as pointers, and [isbits Union optimisations]
 (https://docs.julialang.org/en/v1/devdocs/isbitsunionarrays/).
 
+`MemoryView{T, M}` is guaranteed to be immutable and to have the same size as a
+`MemoryRef{T}` and an `Int` combined.
+
 """
 struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     # If the memview is empty, there is no guarantees where the ref points to
@@ -126,7 +130,7 @@ Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
 except if `x` is empty, where it may point to one element past the end.
 
 To get the `MemoryRef` from an immutable `MemoryView`, use
-[`unsafe_memoryref]`(@ref)
+[`unsafe_memoryref`](@ref)
 """
 Base.memoryref(@nospecialize(x::MutableMemoryView)) = x.ref
 
@@ -143,6 +147,26 @@ memory assumed to be immutable.
     the memory backing a `String`. This can cause undefined behavour.
 """
 unsafe_memoryref(@nospecialize(x::MemoryView)) = x.ref
+
+"""
+    unsafe_memory(v::MemoryView{T})::Memory{T}
+
+Get the entire `Memory` underlying `v`, including elements outside the view.
+The returned memory is shared with `v`, not copied.
+
+!!! warning
+    As the resulting `Memory` is mutable, users must take care that this
+    function allows mutation of memory assumed to be immutable, such as
+    the memory backing a `String`. This can cause undefined behaviour.
+"""
+unsafe_memory(::MemoryView)
+
+# The parent method for MemoryRef was added in 1.12.
+@static if VERSION < v"1.12.0-DEV.966"
+    unsafe_memory(@nospecialize(v::MemoryView)) = v.ref.mem
+else
+    unsafe_memory(@nospecialize(v::MemoryView)) = parent(v.ref)
+end
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
