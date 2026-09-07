@@ -6,7 +6,7 @@ except if `x` is empty, where it may point to one element past the end.
 """
 Base.memoryref(@nospecialize(x::MemoryVector)) = x.ref
 
-function Base.setindex!(v::MutableMemoryVector{T}, x, i::Int) where {T}
+function Base.setindex!(v::MutableMemoryVector{T}, x, i::Integer) where {T}
     @boundscheck checkbounds(v, i)
     xT = x isa T ? x : convert(T, x)::T
     ref = @inbounds memoryref(v.ref, i)
@@ -131,7 +131,7 @@ end
 # need to handle the empty case.
 function Base.getindex(v::MemoryView{T, M}, idx::Base.OneTo) where {T, M}
     @boundscheck checkbounds(v, idx)
-    return unsafe_new_memoryview(M, v.ref, last(idx))
+    return unsafe_new_memoryview(M, v.ref, Int(last(idx))::Int)
 end
 
 Base.getindex(@nospecialize(v::MemoryView), ::Colon) = v
@@ -512,7 +512,7 @@ function split_last(v::MemoryView)
 end
 
 """
-    split_at(v::T, i::Int) -> Tuple{T, T} where {T <: MemoryView}
+    split_at(v::T, i::Integer) -> Tuple{T, T} where {T <: MemoryView}
 
 Split a memory view into two at an index.
 
@@ -528,10 +528,11 @@ julia> split_at(MemoryView(Int8[1, 2, 3]), 4)
 (Int8[1, 2, 3], Int8[])
 ```
 """
-function split_at(v::MemoryView, i::Int)
+function split_at(v::MemoryView, i::Integer)
     @boundscheck if i ∉ 1:(lastindex(v) + 1)
         throw_lightboundserror(v, i)
     end
+    i = Int(i)::Int
     return (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
 end
 
