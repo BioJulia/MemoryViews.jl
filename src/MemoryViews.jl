@@ -70,6 +70,9 @@ This includes the fact that some elements in the array, such as  `String`s,
 may be stored as pointers, and [isbits Union optimisations]
 (https://docs.julialang.org/en/v1/devdocs/isbitsunionarrays/).
 
+`MemoryView{T, M}` is guaranteed to be immutable and to have the same size as a
+`MemoryRef{T}` and an `Int` combined.
+
 """
 struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
     # If the memview is empty, there is no guarantees where the ref points to

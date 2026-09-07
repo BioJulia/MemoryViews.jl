@@ -33,6 +33,55 @@ The caller is responsible for ensuring that the resulting reference is not used
 to mutate memory assumed to be immutable. Prefer keeping APIs in terms of
 `ImmutableMemoryView` when access to the underlying `MemoryRef` is not required.
 
+## Accessing parent memory
+
+The specialized `parent(::ImmutableMemoryView)` method has been removed because
+it returned mutable `Memory` from a read-only view. Base's generic
+`parent(::AbstractArray)` method instead returns the immutable view itself.
+`parent(::MutableMemoryView)` continues to return its backing `Memory`.
+
+Code that truly needs the backing memory of an immutable view must first make
+the unsafe operation explicit:
+
+```julia
+view = MemoryView("abc")
+ref = unsafe_memoryref(view)
+memory = parent(ref) # On Julia versions defining parent(::MemoryRef)
+```
+
+The returned memory must not be mutated when it backs data assumed to be
+immutable, such as a `String`.
+
+## Pointer conversion
+
+`Base.cconvert(Ptr{T}, view)` now returns `view` itself, keeping the owning
+object rooted during a foreign call. Use `Base.unsafe_convert` for the second
+conversion step, or call `pointer` directly:
+
+```julia
+converted = Base.cconvert(Ptr{UInt8}, view)
+ptr = Base.unsafe_convert(Ptr{UInt8}, converted)
+
+# Equivalent when the caller manages preservation:
+ptr = pointer(view)
+```
+
+Previously, `cconvert` returned the underlying `MemoryRef`.
+
+## Internal fields
+
+The field names of `MemoryView` are no longer public API. Replace direct field
+access with the corresponding interface:
+
+* Replace `view.len` with `length(view)`.
+* Replace `view.ref` with `Base.memoryref(view)` for mutable views.
+* For an immutable view, use `unsafe_memoryref(view)` only when explicitly
+  unsafe access is necessary.
+
+`MemoryView{T, M}` remains guaranteed to be immutable and to have the same size
+as a `MemoryRef{T}` and an `Int` combined. Its field count, field order, field
+types, and field names are internal.
+
 ## Removal of the `MemoryKind` interface
 
 The `MemoryKind` trait and its `IsMemory` and `NotMemory` types have been
