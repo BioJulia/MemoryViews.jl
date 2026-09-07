@@ -371,6 +371,38 @@ end
     @test_throws LightBoundsError copyto!(refvector, 4, refvector, 1, 2)
 end
 
+@testset "Integer arguments" begin
+    for I in (Int8, Int32, Int128, UInt8, UInt, UInt128, BigInt)
+        data = [10, 20, 30]
+        mem = MemoryView(data)
+        @test setindex!(mem, 40, I(2)) === mem
+        @test data == [10, 40, 30]
+        @test_throws LightBoundsError setindex!(mem, 0, I(0))
+        @test_throws LightBoundsError setindex!(mem, 0, I(4))
+
+        for v in (mem, ImmutableMemoryView(mem), mem[2:3], mem[1:0])
+            for n in 0:length(v)
+                prefix = @inferred v[Base.OneTo(I(n))]
+                @test prefix == v[1:n]
+                @test typeof(prefix) === typeof(v)
+                a, b = @inferred split_at(v, I(n + 1))
+                @test a == v[1:n]
+                @test typeof(a) === typeof(v)
+                @test b == v[(n + 1):end]
+                @test typeof(b) === typeof(v)
+            end
+            @test_throws LightBoundsError v[Base.OneTo(I(length(v) + 1))]
+            @test_throws LightBoundsError split_at(v, I(0))
+            @test_throws LightBoundsError split_at(v, I(length(v) + 2))
+        end
+    end
+
+    mem = MemoryView([1, 2, 3])
+    for i in (-big(1), big(typemax(Int)) + 1, typemax(UInt))
+        @test_throws LightBoundsError split_at(mem, i)
+    end
+end
+
 @testset "Immutable views are immutable" begin
     mem = MemoryView("abc")
     @test mem isa ImmutableMemoryView{UInt8}
