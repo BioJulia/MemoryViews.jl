@@ -42,7 +42,7 @@ MUT_BACKINGS = Any[
     @testset "Unsafe mutability" begin
         v = [1.0, 2.0, 3.0]
         m = ImmutableMemoryView(v)
-        m2 = unsafe_from_parts(m.ref, 3)
+        m2 = unsafe_from_parts(unsafe_memoryref(m), 3)
         m2[2] = 5.0
         @test v == [1.0, 5.0, 3.0]
     end
@@ -71,6 +71,42 @@ end
     @test ImmutableMemoryView{Int}(x) isa ImmutableMemoryView{Int}
     @test_throws TypeError MemoryView{UInt32}(x)
     @test_throws TypeError ImmutableMemoryView{UInt32}(x)
+end
+
+@testset "SubArray construction" begin
+    a = reshape(collect(1:24), 4, 3, 2)
+
+    for s in Any[
+            view(a, 2:4),
+            view(a, :, 2, 1),
+            view(a, :, 2:3, 1),
+            view(a, 2:4, 2, 1),
+            view(a, 1, 2, 1),
+            view(a, Base.IdentityUnitRange(2:4)),
+            view(a, 1:0),
+            view(a, :, :, :),
+        ]
+        mem = MemoryView(s)
+        @test mem isa MutableMemoryView{Int}
+        @test mem == vec(collect(s))
+    end
+
+    # Contiguity must follow from the type. A StepRange is therefore not
+    # accepted even when its runtime step happens to be one.
+    @test_throws MethodError MemoryView(view(a, 1:1:4))
+    @test_throws MethodError MemoryView(view(a, 1:2:4))
+    @test_throws MethodError MemoryView(view(a, 4:-1:2))
+    @test_throws MethodError MemoryView(view(a, 1, :, 1))
+    @test_throws MethodError MemoryView(view(a, 1:2, :, 1))
+
+    @test MemoryView(view([1])) == [1]
+    @test MemoryView(view(UInt8[0x61], 1)) == UInt8[0x61]
+    @test MemoryView(view(b"abcde", Base.IdentityUnitRange(2:4))) == b"bcd"
+
+    # The index layout is contiguous, but the parent is not memory-backed.
+    range_view = view(reshape(UInt8(1):UInt8(6), 2, 3), 2:4)
+    @test range_view isa MemoryViews.ContiguousSubArray
+    @test_throws MethodError MemoryView(range_view)
 end
 
 @testset "Immutable views are immutable" begin
@@ -139,9 +175,15 @@ end
     for mem in Any[MemoryView([1, 2, 3]), MemoryView("abc"), MemoryView(Float32[1.0])]
         @test strides(mem) === (1,)
         @test IndexStyle(typeof(mem)) === Base.IndexLinear()
-        @test Base.elsize(typeof(mem)) === Base.elsize(typeof(parent(mem)))
+        @test Base.elsize(typeof(mem)) === Base.elsize(Memory{eltype(mem)})
     end
     @test strides(MemoryView(Int[])) === (1,)
+
+    for M in (Mutable, Immutable)
+        T = MemoryView{Int, M}
+        @test !ismutabletype(T)
+        @test sizeof(T) == sizeof(MemoryRef{Int}) + sizeof(Int)
+    end
 end
 
 # Span of views
@@ -350,15 +392,51 @@ end
 @testset "memoryref" begin
     mem = MemoryView([10, 20, 30])[2:3]
     ref = memoryref(mem)
-    @test ref === mem.ref
+    @test ref isa MemoryRef{Int}
     @test memoryref(ref, 1)[] === 20
     @test memoryref(ref, 2)[] === 30
 
     imm = MemoryView("abc")[2:3]
-    ref = memoryref(imm)
-    @test ref === imm.ref
+    @test_throws MethodError memoryref(imm)
+
+    ref = unsafe_memoryref(imm)
+    @test ref isa MemoryRef{UInt8}
     @test memoryref(ref, 1)[] === UInt8('b')
     @test memoryref(ref, 2)[] === UInt8('c')
+
+    backing = [10, 20, 30]
+    imm = ImmutableMemoryView(backing)[2:3]
+    ref = unsafe_memoryref(imm)
+    memoryref(ref, 1)[] = 50
+    @test backing == [10, 50, 30]
+end
+
+@testset "unsafe_memory" begin
+    for mem in (Memory{Int}([1, 2, 3]), Memory{String}(["a", "b", "c"]), Memory{Nothing}(undef, 3))
+        for full in (MemoryView(mem), ImmutableMemoryView(mem))
+            for inds in (1:3, 2:3, 2:1, 4:3)
+                v = full[inds]
+                @test (@inferred unsafe_memory(v)) === mem
+            end
+        end
+    end
+
+    mem = Memory{Int}()
+    for v in (MemoryView(mem), ImmutableMemoryView(mem))
+        @test (@inferred unsafe_memory(v)) === mem
+    end
+
+    v = MemoryView([1, 2, 3])[2:3]
+    unsafe_memory(v)[2] = 4
+    @test v[1] == 4
+    v[2] = 5
+    @test unsafe_memory(v)[3] == 5
+
+    full = MemoryView("abcd")
+    mem = @inferred unsafe_memory(full[2:3])
+    @test mem isa Memory{UInt8}
+    @test mem == codeunits("abcd")
+    @test mem === unsafe_memory(full)
 end
 
 @testset "Misc functions" begin
@@ -377,7 +455,7 @@ end
         @test mem == [9, 3, 4]
         @test mem2 == [2, 10, 4]
         # Only makes a copy of the needed data
-        @test length(mem2.ref.mem) == length(mem2)
+        @test length(parent(mem2)) == length(mem2)
     end
 
     @testset "Parentindices" begin
@@ -487,7 +565,7 @@ end
             mem = MemoryView(v)
             rev = reverse(mem)
             @test typeof(rev) == typeof(mem)
-            @test rev.ref != mem.ref
+            @test memoryref(rev) != memoryref(mem)
             @test rev == reverse(v)
             @test_throws Exception reverse!(ImmutableMemoryView(v))
         end
@@ -511,11 +589,29 @@ end
     end
 
     @testset "Parent" begin
-        mem = Memory{UInt16}(undef, 3)
+        mem = Memory{UInt16}([1, 2, 3])
         vec = Base.wrap(Array, mem, (3,))
         v = MemoryView(vec)
-        @test parent(v) === mem
-        @test parent(ImmutableMemoryView(mem)) === mem
+        @test parent(v) === v
+        imm = ImmutableMemoryView(mem)
+        @test parent(imm) === imm
+        for full in (v, imm), inds in (1:3, 2:3, 2:1, 4:3)
+            sliced = full[inds]
+            p = parent(sliced)
+            @test typeof(p) === typeof(sliced)
+            @test p === full
+            @test p == mem
+            @test unsafe_memoryref(p) === memoryref(mem)
+        end
+        for full in (MemoryView(Memory{UInt16}()), ImmutableMemoryView(Memory{UInt16}()))
+            @test parent(full) === full
+        end
+        parent(v[2:3])[1] = 4
+        @test mem[1] == 4
+        @test_throws CanonicalIndexError parent(imm[2:3])[1] = 5
+        @static if VERSION >= v"1.12.0-DEV.966"
+            @test parent(unsafe_memoryref(imm)) === mem
+        end
     end
 
     @testset "Truncate" begin
@@ -714,12 +810,19 @@ end
 
 @testset "Iterators.reverse" begin
     for v in Any[AbstractString["abc", "def", ""], Char['a', 'b'], UInt32[], Int16[9, 2, 1]]
-        mem = MemoryView(v)
-        it = Iterators.reverse(mem)
-        @test length(it) == length(mem)
-        @test collect(it) == reverse(mem)
-        @test Iterators.reverse(it) === ImmutableMemoryView(mem)
+        for mem in (MemoryView(v), ImmutableMemoryView(v))
+            it = Iterators.reverse(mem)
+            @test length(it) == length(mem)
+            @test eltype(it) === eltype(mem)
+            @test collect(it) == reverse(mem)
+            @test Iterators.reverse(it) === mem
+        end
     end
+
+    v = [1, 2, 3]
+    mem = Iterators.reverse(Iterators.reverse(MemoryView(v)))
+    mem[2] = 4
+    @test v == [1, 4, 3]
 end
 
 @testset "split_each" begin
@@ -729,6 +832,14 @@ end
     it = split_each(["abc", "def", "ghi"], "")
     @test eltype(it) == MutableMemoryView{String}
     @test it isa DelimitedIterator{String, Mutable}
+
+    it = split_each(AbstractString["a", "b"], "")
+    @test eltype(it) == MutableMemoryView{AbstractString}
+    @test it isa DelimitedIterator{AbstractString, Mutable, String}
+    @test collect(it) == [["a", "b"]]
+    @test collect(split_each(AbstractString["", "a", "", "b", ""], "")) == [[], ["a"], ["b"], []]
+    @test collect(split_each(Union{Int, Nothing}[1, nothing, 2], nothing)) == [[1], [2]]
+    @test_throws ErrorException split_each([1, 2], 1.0)
 
     @test collect(split_each(b"", 0x00)) == ImmutableMemoryView{UInt8}[]
     @test collect(split_each([1, 2, 3, 3, 4, 5, 2, 3], 3)) == [[1, 2], [], [4, 5, 2], []]
@@ -786,8 +897,23 @@ end
     data = b"Hello, world!"
     buf = IOBuffer(data)
     v = fill(0xaa, 8)
-    readbytes!(buf, MemoryView(v), 10)
-    @test v == b"Hello, w"
+    @test_throws MethodError readbytes!(buf, MemoryView(v), 10)
+    @test all(==(0xaa), v)
+    @test position(buf) == 0
+    @test_throws MethodError readbytes!(IOBuffer(), MemoryView(v), 10)
+
+    # A short read with nb below the view length reports the bytes actually read
+    buf = IOBuffer(b"abc")
+    @test readbytes!(buf, MemoryView(v), 5) == 3
+    @test v == vcat(b"abc", fill(0xaa, 5))
+    @test readbytes!(buf, MemoryView(v), 5) == 0
+
+    # A zero-byte request leaves the stream and destination unchanged
+    buf = IOBuffer(data)
+    before = copy(v)
+    @test readbytes!(buf, MemoryView(v), 0) == 0
+    @test v == before
+    @test position(buf) == 0
 
     # Negative nb is invalid
     @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)
@@ -795,13 +921,16 @@ end
 
 @testset "Base arrays" begin
     @testset "Memory construction" begin
-        v = ImmutableMemoryView([5, 2, 1])
+        backing = [5, 2, 1]
+        v = ImmutableMemoryView(backing)
         @test Memory(v) isa Memory{Int}
         @test Memory(v) == v
 
-        @test Memory{Int}(v) isa Memory{Int}
-        @test Memory{Int}(v) == v
-        @test Memory{Int}(v) !== parent(v)
+        copied = Memory{Int}(v)
+        @test copied isa Memory{Int}
+        @test copied == v
+        copied[1] = 10
+        @test backing == [5, 2, 1]
 
         @test isempty(Memory{Int}(v[1:0]))
     end
@@ -858,32 +987,11 @@ end
     @test mem isa MutableMemoryView{Int}
 
     v2 = MemoryView([3, 1, 4])
-    @test Base.cconvert(Ptr{Int}, v2) === v2.ref
-end
-
-@testset "MemoryKind" begin
-    @test MemoryKind(Vector{Int16}) == IsMemory(MutableMemoryView{Int16})
-    @test MemoryKind(typeof(codeunits(view("abc", 2:3)))) ==
-        IsMemory(ImmutableMemoryView{UInt8})
-    @test MemoryKind(typeof(view(Memory{String}(undef, 3), Base.OneTo(2)))) ==
-        IsMemory(MutableMemoryView{String})
-    @test MemoryKind(Matrix{Nothing}) == NotMemory()
-    @test MemoryKind(Memory{Int32}) == IsMemory(MutableMemoryView{Int32})
-    @test MemoryKind(typeof(view([1], 1:1))) == IsMemory(MutableMemoryView{Int})
-
-    @test MemoryKind(ImmutableMemoryView{Dict}) == IsMemory(ImmutableMemoryView{Dict})
-    @test MemoryKind(MutableMemoryView{UInt32}) == IsMemory(MutableMemoryView{UInt32})
-
-    @test inner(IsMemory(MutableMemoryView{Int32})) == MutableMemoryView{Int32}
-    @test inner(IsMemory(ImmutableMemoryView{Tuple{String, Int}})) ==
-        ImmutableMemoryView{Tuple{String, Int}}
-
-    @test MemoryKind(SubString{String}) == NotMemory()
-    @test MemoryKind(String) == NotMemory()
-    @test MemoryKind(Int) == NotMemory()
-    @test MemoryKind(Nothing) == NotMemory()
-    @test MemoryKind(Union{}) == NotMemory()
-    @test_throws Exception inner(NotMemory())
+    converted = Base.cconvert(Ptr{Int}, v2)
+    @test converted === v2
+    GC.@preserve converted begin
+        @test Base.unsafe_convert(Ptr{Int}, converted) === pointer(v2)
+    end
 end
 
 @testset "StringViews" begin
@@ -891,18 +999,15 @@ end
     s = StringView([0x01, 0x02])
     @test MemoryView(s) isa MutableMemoryView{UInt8}
     @test MemoryView(s) == [0x01, 0x02]
-    @test MemoryKind(typeof(s)) == IsMemory{MutableMemoryView{UInt8}}()
 
     # Backed by immutable string data
     s = StringView(view(codeunits("abcd"), 2:4))
     @test MemoryView(s) isa ImmutableMemoryView{UInt8}
     @test MemoryView(s) == codeunits("bcd")
-    @test MemoryKind(typeof(s)) == IsMemory{ImmutableMemoryView{UInt8}}()
 
     # Not backed by memory
     s = StringView(view(0x61:0x65, 2:4))
     @test_throws MethodError MemoryView(s)
-    @test MemoryKind(typeof(s)) == NotMemory()
 end
 
 @testset "FixedSizeArrays" begin
@@ -917,7 +1022,6 @@ end
         @test length(mem) == length(A)
         @test mem == vec(A)
         @test typeof(mem) == MutableMemoryView{eltype(A)}
-        @test MemoryKind(typeof(A)) == IsMemory(MutableMemoryView{eltype(A)})
     end
 end
 

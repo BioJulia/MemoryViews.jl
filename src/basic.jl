@@ -6,12 +6,25 @@ function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
     return v
 end
 
-# The parent method for memoryref was added in 1.12. In versions before that,
-# it can be accessed by reaching into internals.
-@static if VERSION < v"1.12.0-DEV.966"
-    Base.parent(@nospecialize(v::MemoryView)) = v.ref.mem
-else
-    Base.parent(@nospecialize(v::MemoryView)) = parent(v.ref)
+"""
+    parent(v::T)::T where {T <: MemoryView}
+
+Get a `MemoryView` of the same type as `v`, encompassing the entire
+underlying `Memory`.
+
+```jldoctest
+julia> mem = ImmutableMemoryView([1, 2, 3])[2:3];
+
+julia> parent(mem)
+3-element ImmutableMemoryView{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function Base.parent(@nospecialize(v::MemoryView))
+    mem = unsafe_memory(v)
+    return unsafe_new_memoryview(_get_mutability(v), memoryref(mem), length(mem))
 end
 
 Base.size(@nospecialize(v::MemoryView)) = (v.len,)
@@ -66,7 +79,7 @@ end
 Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
 Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
 Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
-Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
+Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v
 Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
 Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
 Base.strides(@nospecialize(::MemoryView)) = (1,)
@@ -406,18 +419,17 @@ function Base.reverse(mem::MemoryView)
     end
 end
 
-struct ReverseMemoryView{T}
-    # I can't think of a reason to allow mutable memory views here
-    mem::ImmutableMemoryView{T}
+struct ReverseMemoryView{T, M <: Union{Mutable, Immutable}}
+    mem::MemoryView{T, M}
 end
 
-function Iterators.reverse(mem::MemoryView{T}) where {T}
-    return ReverseMemoryView{T}(ImmutableMemoryView(mem))
+function Iterators.reverse(mem::MemoryView)
+    return ReverseMemoryView(mem)
 end
 Iterators.reverse(@nospecialize(x::ReverseMemoryView)) = x.mem
 
 Base.length(@nospecialize(x::ReverseMemoryView)) = length(x.mem)
-Base.eltype(::Type{ReverseMemoryView{T}}) where {T} = T
+Base.eltype(::Type{ReverseMemoryView{T, M}}) where {T, M} = T
 
 function Base.iterate(x::ReverseMemoryView, state = length(x))
     iszero(state) && return nothing

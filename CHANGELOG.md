@@ -4,6 +4,35 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.5.0
+See the [migration guide](docs/src/migration.md).
+
+### Breaking changes
+* `DelimitedIterator{T, M}` is now `DelimitedIterator{T, M, D}`, where `D` is
+  the delimiter type. `split_each(data, d)` now accepts any delimiter satisfying
+  `d isa eltype(MemoryView(data))`, including concrete delimiters for abstract
+  element types.
+* `Iterators.reverse` now preserves the mutability of its input `MemoryView`.
+  Applying it twice returns the original view, rather than always returning an
+  `ImmutableMemoryView`.
+* `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
+  This method was unsafe, and so has been removed.
+  To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
+* `parent(::MemoryView)` now returns a view of the same type spanning the entire
+  backing memory, preserving mutability, instead of returning the backing `Memory`.
+  Use `unsafe_memory` when the underlying `Memory` is required.
+* `Base.cconvert(::Type{<:Ptr}, ::MemoryView)` now returns the input view.
+  Use `Base.unsafe_convert` or `pointer` to obtain a pointer.
+* The `MemoryView` fields and exact representation are now explicitly internal
+  API. The type remains immutable and the same size as a `MemoryRef` and an
+  `Int` combined.
+* Removed the `MemoryKind` interface, including the `IsMemory` and `NotMemory`
+  types and the `inner(::IsMemory)` function. Dispatch directly on `MemoryView`
+  instead.
+* `readbytes!(::IO, v::MutableMemoryView{UInt8}, nb)` now throws a `MethodError`
+  before reading if `nb > length(v)`, because memory views cannot be resized.
+  Previously, it silently limited the request to `length(v)` bytes.
+
 ## 0.4.2
 * Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
 
@@ -80,6 +109,3 @@ Various fixes and optimizations.
 * Add functions `split_first`, `split_last`, `split_at` and `split_unaligned`
 * Add a more correct implementation of `Base.mightalias` for memory views and
   some types of arrays
-
-
-

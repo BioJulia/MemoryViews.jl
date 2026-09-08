@@ -14,14 +14,17 @@ The `MemoryView` type is a useful low-level building block for code that operate
 * Low-overhead, efficient methods
 * A safer alternative to pointers
 
-The `MemoryView` type has the following layout:
+`MemoryView{T, M}` is guaranteed to be immutable and to have the same size as a
+`MemoryRef{T}` and an `Int` combined:
 
 ```julia
-struct MemoryView{T, M} <: DenseVector{T}
-    ref::MemoryRef{T},
-    len::Int
-end
+!ismutabletype(MemoryView{T, M})
+sizeof(MemoryView{T, M}) == sizeof(MemoryRef{T}) + sizeof(Int)
 ```
+
+Its fields are internal and are not part of the public API. Use `length`,
+`Base.memoryref` for mutable views, [`unsafe_memoryref`](@ref) when explicitly
+unsafe access is necessary, or `pointer` rather than accessing fields directly.
 
 The `M` parameter is either `Mutable` or `Immutable`, which are unexported but public types defined in this package.
 MemoryViews also provide the following aliases for convenience:

@@ -3,12 +3,10 @@ module MemoryViews
 export MemoryView,
     ImmutableMemoryView,
     MutableMemoryView,
-    MemoryKind,
-    IsMemory,
-    NotMemory,
-    inner,
     split_each,
     unsafe_from_parts,
+    unsafe_memoryref,
+    unsafe_memory,
     split_first,
     split_last,
     split_at,
@@ -44,8 +42,6 @@ The parameter `M` controls the mutability of the memory view,
 and may be `Mutable` or `Immutable`, corresponding to the
 the aliases `MutableMemoryView{T}` and `ImmutableMemoryView{T}`.
 
-See also: `MemoryKind`
-
 # Examples
 ```jldoctest
 julia> v = view([1, 2, 3, 4], 2:3);
@@ -63,10 +59,6 @@ true
 New types `T` which are backed by dense memory should implement:
 * `MemoryView(x::T)` to construct a memory view from `x`. This should
    always return a `MutableMemoryView` when the memory of `x` is mutable.
-* `MemoryKind(x::T)`, if `T` is semantically equal to its own memory view.
-  Examples of this include `Vector`, `Memory`, and
-  `Base.CodeUnits{UInt8, String}`. If so, `x == MemoryView(x)` should hold.
-
 If `MemoryView(x)` is implemented, then `ImmutableMemoryView(x)` will
 automatically work, even if `MemoryView(x)` returns a mutable view.
 
@@ -78,6 +70,9 @@ The precise memory layout of the data in a `MemoryView` follows that of `Memory`
 This includes the fact that some elements in the array, such as  `String`s,
 may be stored as pointers, and [isbits Union optimisations]
 (https://docs.julialang.org/en/v1/devdocs/isbitsunionarrays/).
+
+`MemoryView{T, M}` is guaranteed to be immutable and to have the same size as a
+`MemoryRef{T}` and an `Int` combined.
 
 """
 struct MemoryView{T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
@@ -129,12 +124,49 @@ function unsafe_from_parts(ref::MemoryRef, len::Int)
 end
 
 """
-    Base.memoryref(x::MemoryView{T})::MemoryRef{T}
+    Base.memoryref(x::MutableMemoryView{T})::MemoryRef{T}
 
 Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
 except if `x` is empty, where it may point to one element past the end.
+
+To get the `MemoryRef` from an immutable `MemoryView`, use
+[`unsafe_memoryref`](@ref)
 """
-Base.memoryref(@nospecialize(x::MemoryView)) = x.ref
+Base.memoryref(@nospecialize(x::MutableMemoryView)) = x.ref
+
+"""
+    unsafe_memoryref(x::MemoryView{T})::MemoryRef{T}
+
+Same as `memoryref(::MutableMemoryView)`, but also works for `ImmutableMemoryView`.
+Users must ensure only to mutate the resulting `MemoryRef` if `x` does not alias
+memory assumed to be immutable.
+
+!!! warning
+    As the resulting `MemoryRef` is mutable, users must take care that this
+    function allows mutation of memory assumed to be immutable, such as
+    the memory backing a `String`. This can cause undefined behavour.
+"""
+unsafe_memoryref(@nospecialize(x::MemoryView)) = x.ref
+
+"""
+    unsafe_memory(v::MemoryView{T})::Memory{T}
+
+Get the entire `Memory` underlying `v`, including elements outside the view.
+The returned memory is shared with `v`, not copied.
+
+!!! warning
+    As the resulting `Memory` is mutable, users must take care that this
+    function allows mutation of memory assumed to be immutable, such as
+    the memory backing a `String`. This can cause undefined behaviour.
+"""
+unsafe_memory(::MemoryView)
+
+# The parent method for MemoryRef was added in 1.12.
+@static if VERSION < v"1.12.0-DEV.966"
+    unsafe_memory(@nospecialize(v::MemoryView)) = v.ref.mem
+else
+    unsafe_memory(@nospecialize(v::MemoryView)) = parent(v.ref)
+end
 
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
@@ -155,64 +187,6 @@ end
 function MemoryView{T}(x) where {T}
     return MemoryView(x)::MemoryView{T}
 end
-
-"""
-    MemoryKind
-
-Trait object used to signal if values of a type is semantically equal to their own `MemoryView`.
-If so, `MemoryKind(T)` should return an instance of `IsMemory`,
-else `NotMemory()`. The default implementation `MemoryKind(::Type)` returns `NotMemory()`.
-
-If `MemoryKind(T) isa IsMemory{M}`, the following must hold:
-1. `M` is a concrete subtype of `MemoryView`. To obtain `M` from an `m::IsMemory{M}`,
-    use `inner(m)`.
-2. `MemoryView(::T)` is a valid instance of `M` (except in cases where there can be invalid
-   instances of `T` that instead errors, e.g. uninitialized instances).
-3. `MemoryView(x) == x` for all instances `x::T`
-
-Some objects can be turned into `MemoryView` without being `IsMemory`.
-For example, `MemoryView(::String)` returns a valid `MemoryView` even though
-`MemoryKind(String) === NotMemory()`.
-This is because strings have different semantics than memory views - the latter
-is a dense `AbstractArray` while strings are not, and so the fourth requirement
-`MemoryView(x::String) == x` does not hold.
-
-See also: [`MemoryView`](@ref)
-"""
-abstract type MemoryKind end
-
-"""
-    NotMemory <: MemoryKind
-
-See: [`MemoryKind`](@ref)
-"""
-struct NotMemory <: MemoryKind end
-
-"""
-    IsMemory{T <: MemoryView} <: MemoryKind
-
-See: [`MemoryKind`](@ref)
-"""
-struct IsMemory{T <: MemoryView} <: MemoryKind
-    function IsMemory{T}() where {T}
-        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
-        return new{T}()
-    end
-end
-IsMemory(T::Type{<:MemoryView}) = IsMemory{T}()
-
-"""
-    inner(::IsMemory{T})
-
-Return `T` from an `IsMemory{T}`.
-
-See: [`MemoryKind`](@ref)
-"""
-inner(::IsMemory{T}) where {T} = T
-
-MemoryKind(::Type) = NotMemory()
-MemoryKind(::Type{Union{}}) = NotMemory()
-MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
 include("construction.jl")
 include("basic.jl")

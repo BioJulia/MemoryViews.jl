@@ -1,11 +1,7 @@
+using MemoryViews
+
 # Findfirst is implemented in terms of findnext
 my_findfirst(p, haystack) = my_findnext(p, haystack, firstindex(haystack))
-
-# When the predicate is looking for a single byte, we dispatch to see
-# if the haystack is a chunk of memory. In that case, we can use memchr
-function my_findnext(p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8}, haystack, k)
-    return _my_findnext(MemoryKind(typeof(haystack)), p, haystack, k)
-end
 
 # The generic: Use fallback
 my_findnext(p, haystack, i) = _my_findnext(p, haystack, i)
@@ -20,9 +16,7 @@ function _my_findnext(p, haystack, i)
     return nothing
 end
 
-# String implementation - strings are not IsMemory, but
-# we can still use the MemoryViews interface to implement
-# char searching.
+# We can use a MemoryView to implement character searching in strings.
 function my_findnext(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, <:AbstractChar},
         s::Union{String, SubString{String}},
@@ -48,22 +42,28 @@ function my_findnext(
     return nothing
 end
 
-# Fallback - if the haystack is not IsMemory of bytes, we use the fallback definiion
-function _my_findnext(::MemoryKind, p, haystack, i)
-    return _my_findnext(p, haystack, i)
-end
-
-# If it is bytes, we can convert the haystack to an ImmutableMemoryView,
-# and use the memory view's optimised method
+# Byte memory views use the optimized method directly.
 function _my_findnext(
-        ::IsMemory{<:MemoryView{UInt8}},
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-        haystack,
+        haystack::MemoryView{UInt8},
         i,
     )
     ind = Int(i)::Int - Int(firstindex(haystack))::Int + 1
     ind < 1 && throw(BoundsError(haystack, i))
     return find_next_byte(p.x, ImmutableMemoryView(haystack), ind)
+end
+
+# Explicitly forward supported memory-backed byte containers.
+const ContiguousByteSubArray = SubArray{
+    UInt8, N, P, I, true,
+} where {N, P, I <: Union{Tuple{Integer}, Tuple{AbstractUnitRange}}}
+
+function my_findnext(
+        p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
+        haystack::Union{Vector{UInt8}, Memory{UInt8}, Base.CodeUnits{UInt8}, ContiguousByteSubArray},
+        i,
+    )
+    return _my_findnext(p, ImmutableMemoryView(haystack), i)
 end
 
 # Wrapper around memchr.

@@ -1,10 +1,6 @@
 MemoryView(@nospecialize(v::MemoryView)) = v
 
 # Array and Memory
-# Array with more than 1 dimension is not equal to the view, since they have different axes
-MemoryKind(::Type{<:Array{T}}) where {T} = NotMemory()
-MemoryKind(::Type{<:Vector{T}}) where {T} = IsMemory(MutableMemoryView{T})
-MemoryKind(::Type{<:Memory{T}}) where {T} = IsMemory(MutableMemoryView{T})
 MemoryView(A::Memory{T}) where {T} = unsafe_new_memoryview(Mutable, memoryref(A), length(A))
 MemoryView(A::Array{T}) where {T} = unsafe_new_memoryview(Mutable, Base.cconvert(Ptr, A), length(A))
 
@@ -24,36 +20,34 @@ function MemoryView(s::SubString{String})
     return unsafe_new_memoryview(Immutable, newref, ncodeunits(s))
 end
 
-# CodeUnits are semantically IsMemory, but only if the underlying string
-# implements MemoryView, which some AbstractStrings may not
-function MemoryKind(::Type{<:Base.CodeUnits{C, S}}) where {C, S}
-    # Strings are normally immutable. New, mutable string types
-    # would need to overload this method.
-    return hasmethod(MemoryView, (S,)) ? IsMemory(ImmutableMemoryView{C}) : NotMemory()
-end
-
 MemoryView(s::Base.CodeUnits) = MemoryView(s.s)
 
-# SubArrays
-# This is quite tricky, because the indexing can be:
-# * <: AbstractUnitRange
-# * StepRange, with step == 1
-# * Integer (zero-dimensional along one axis)
-
-# It can also be multidimensional, but if so, all axes but the last one
-# must span the entire dimension.
-# And if so, we would need to compute the linear indices.
-
-# For now, I've only accepted 1-D views.
+# SubArrays with fast linear indexing are contiguous when either their first
+# index is an AbstractUnitRange, or all their indices are scalars. Together
+# with the index-tuple restriction, L == true guarantees unit linear stride.
 const ContiguousSubArray = SubArray{
     T, N, P, I, true,
-} where {T, N, P, I <: Union{Tuple{Integer}, Tuple{AbstractUnitRange}}}
+} where {
+    T,
+    N,
+    P,
+    I <: Union{Tuple{AbstractUnitRange, Vararg{Any}}, Tuple{Vararg{Integer}}},
+}
 
-MemoryKind(::Type{<:ContiguousSubArray{T, N, P}}) where {T, N, P} = MemoryKind(P)
+first_parent_index(i::Integer) = i
+first_parent_index(i) = first(i)
 
 function MemoryView(s::ContiguousSubArray{T, N, P}) where {T, N, P}
-    memview = MemoryView(parent(s)::P)
-    inds = only(parentindices(s))
-    @boundscheck checkbounds_lightboundserror(memview.ref.mem, inds)
-    return @inbounds memview[inds]
+    p = parent(s)::P
+    memview = MemoryView(p)::MemoryView{T}
+    isempty(s) && return memview[1:0]
+
+    parent_inds = map(first_parent_index, parentindices(s))
+    linear_inds = LinearIndices(p)
+    parent_start = linear_inds[parent_inds...]
+    start = Int(parent_start - first(linear_inds) + 1)::Int
+    stop = start + length(s) - 1
+
+    @boundscheck checkbounds_lightboundserror(memview, start:stop)
+    return @inbounds memview[start:stop]
 end
