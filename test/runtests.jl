@@ -152,7 +152,8 @@ end
     end
     memview = MemoryView{Int}(refvector, 2)
     @test memview isa MutableMemoryView{Int}
-    @test parent(memview) === memory
+    @test parent(memview) isa MutableMemoryView{Int}
+    @test unsafe_memory(parent(memview)) === memory
     @test memview == [2, 7]
     @test MemoryView(refvector) == refvector
     @test ImmutableMemoryView(refvector) isa ImmutableMemoryView{Int}
@@ -180,7 +181,8 @@ end
         result = refvector[idx]
         @test result isa MutableMemoryView{Int}
         @test result == collect(refvector)[idx]
-        @test parent(result) === memory
+        @test parent(result) isa MutableMemoryView{Int}
+        @test unsafe_memory(parent(result)) === memory
     end
 
     rangeview = refvector[2:3]
@@ -1288,9 +1290,23 @@ end
     data = b"Hello, world!"
     buf = IOBuffer(data)
     v = fill(0xaa, 8)
-    @test readbytes!(buf, MemoryView(v), 10) == 8
-    @test position(buf) == 8
-    @test v == b"Hello, w"
+    @test_throws MethodError readbytes!(buf, MemoryView(v), 10)
+    @test all(==(0xaa), v)
+    @test position(buf) == 0
+    @test_throws MethodError readbytes!(IOBuffer(), MemoryView(v), 10)
+
+    # A short read with nb below the view length reports the bytes actually read
+    buf = IOBuffer(b"abc")
+    @test readbytes!(buf, MemoryView(v), 5) == 3
+    @test v == vcat(b"abc", fill(0xaa, 5))
+    @test readbytes!(buf, MemoryView(v), 5) == 0
+
+    # A zero-byte request leaves the stream and destination unchanged
+    buf = IOBuffer(data)
+    before = copy(v)
+    @test readbytes!(buf, MemoryView(v), 0) == 0
+    @test v == before
+    @test position(buf) == 0
 
     # Negative nb is invalid
     @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)

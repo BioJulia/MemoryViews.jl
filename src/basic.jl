@@ -1,10 +1,10 @@
 """
-    Base.memoryref(x::Union{MemoryView{T}, RefVector{T}})::MemoryRef{T}
+    Base.memoryref(x::Union{MutableMemoryView{T}, RefVector{T}})::MemoryRef{T}
 
 Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
 except if `x` is empty, where it may point to one element past the end.
 """
-Base.memoryref(@nospecialize(x::MemoryVector)) = x.ref
+Base.memoryref(@nospecialize(x::MutableMemoryVector)) = x.ref
 
 function Base.setindex!(v::MutableMemoryVector{T}, x, i::Integer) where {T}
     @boundscheck checkbounds(v, i)
@@ -121,7 +121,6 @@ const KNOWN_MEM_BACKED = Union{
     Array,
     Memory,
     ContiguousSubArray,
-    ZeroDimensionalSubArray,
 }
 
 function Base.mightalias(a::MemoryVector, b::KNOWN_MEM_BACKED)
