@@ -1,4 +1,12 @@
-function Base.setindex!(v::MutableMemoryView{T}, x, i::Int) where {T}
+"""
+    Base.memoryref(x::Union{MemoryView{T}, RefVector{T}})::MemoryRef{T}
+
+Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
+except if `x` is empty, where it may point to one element past the end.
+"""
+Base.memoryref(@nospecialize(x::MemoryVector)) = x.ref
+
+function Base.setindex!(v::MutableMemoryVector{T}, x, i::Integer) where {T}
     @boundscheck checkbounds(v, i)
     xT = x isa T ? x : convert(T, x)::T
     ref = @inbounds memoryref(v.ref, i)
@@ -9,30 +17,29 @@ end
 # The parent method for memoryref was added in 1.12. In versions before that,
 # it can be accessed by reaching into internals.
 @static if VERSION < v"1.12.0-DEV.966"
-    Base.parent(@nospecialize(v::MemoryView)) = v.ref.mem
+    Base.parent(@nospecialize(v::MemoryVector)) = v.ref.mem
 else
-    Base.parent(@nospecialize(v::MemoryView)) = parent(v.ref)
+    Base.parent(@nospecialize(v::MemoryVector)) = parent(v.ref)
 end
 
 Base.size(@nospecialize(v::MemoryView)) = (v.len,)
-Base.IndexStyle(@nospecialize(T::Type{<:MemoryView})) = Base.IndexLinear()
+Base.IndexStyle(@nospecialize(T::Type{<:MemoryVector})) = Base.IndexLinear()
 
-function Base.iterate(x::MemoryView, i::Int = 1)
+function Base.iterate(x::MemoryVector, i::Int = 1)
     ((i - 1) % UInt) < (length(x) % UInt) || return nothing
     return (@inbounds x[i], i + 1)
 end
 
-# Base.memoryindex exists in Julia 1.13 onwards.
-@static if VERSION < v"1.13.0-DEV.1289"
-    function Base.parentindices(x::MemoryView)
-        start = Core.memoryrefoffset(x.ref)
-        return (start:(start + length(x) - 1),)
-    end
+function Base.parentindices(x::MemoryVector)
+    start = memoryrefindex(x.ref)
+    return (start:(start + length(x) - 1),)
+end
+
+# Core.sizeof is the aligned allocation size in Julia 1.14 and later.
+@static if VERSION < v"1.14"
+    element_aligned_sizeof(T::Type) = Base.aligned_sizeof(T)
 else
-    function Base.parentindices(x::MemoryView)
-        start = Base.memoryindex(x.ref)
-        return (start:(start + length(x) - 1),)
-    end
+    element_aligned_sizeof(T::Type) = Core.sizeof(T)
 end
 
 function Base.copy(x::MemoryView{T, M}) where {T, M}
@@ -41,11 +48,11 @@ function Base.copy(x::MemoryView{T, M}) where {T, M}
     return unsafe_new_memoryview(M, memoryref(newmem), x.len)
 end
 
-function Base.checkbounds(@nospecialize(v::MemoryView), is...)
+function Base.checkbounds(v::MemoryVector, is...)
     checkbounds_lightboundserror(v, is...)
 end
 
-function Base.getindex(v::MemoryView, i::Integer)
+function Base.getindex(v::MemoryVector, i::Integer)
     @boundscheck checkbounds(v, i)
     ref = @inbounds memoryref(v.ref, i)
     return @inbounds ref[]
@@ -64,27 +71,23 @@ function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
 end
 
 Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
-Base.pointer(x::MemoryView{T}) where {T} = Ptr{T}(pointer(x.ref))
-Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryView{T}) where {T} = pointer(v)
-Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v.ref
-Base.elsize(::Type{<:MemoryView{T}}) where {T} = Base.elsize(Memory{T})
-Base.sizeof(x::MemoryView) = Base.elsize(typeof(x)) * length(x)
-Base.strides(@nospecialize(::MemoryView)) = (1,)
+Base.pointer(x::MemoryVector{T}) where {T} = Ptr{T}(pointer(x.ref))
+Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryVector{T}) where {T} = pointer(v)
+Base.cconvert(::Type{<:Ptr{T}}, v::MemoryVector{T}) where {T} = v.ref
+Base.elsize(::Type{<:MemoryVector{T}}) where {T} = Base.elsize(Memory{T})
+Base.sizeof(x::MemoryVector) = Base.elsize(typeof(x)) * length(x)
+Base.strides(@nospecialize(::MemoryVector)) = (1,)
 
-# For two distinct element types, they can't alias
-Base.mightalias(@nospecialize(::MemoryView), @nospecialize(::MemoryView)) = false
-
-function Base.mightalias(a::MemoryView{T}, b::MemoryView{T}) where {T}
+function Base.mightalias(a::MemoryVector, b::MemoryVector)
     (isempty(a) | isempty(b)) && return false
     # We can't compare the underlying Memory with === to add a fast path here,
     # because users can create aliasing, but distinct Memory using unsafe_wrap.
     GC.@preserve a b begin
-        (p1, p2) = (pointer(a), pointer(b))
-        elz = Base.elsize(a)
+        (p1, p2) = (Ptr{UInt8}(pointer(a)), Ptr{UInt8}(pointer(b)))
         return if p1 < p2
-            p1 + length(a) * elz > p2
+            p1 + sizeof(a) > p2
         else
-            p2 + length(b) * elz > p1
+            p2 + sizeof(b) > p1
         end
     end
 end
@@ -92,13 +95,18 @@ end
 # We don't include strings here because this union is used for mightalias
 # checks, which are done implicitly, and we don't want to construct memory
 # views from strings implicitly, since that currently allocates.
-const KNOWN_MEM_BACKED = Union{Array, Memory, ContiguousSubArray}
+const KNOWN_MEM_BACKED = Union{
+    Array,
+    Memory,
+    ContiguousSubArray,
+    ZeroDimensionalSubArray,
+}
 
-function Base.mightalias(a::MemoryView, b::KNOWN_MEM_BACKED)
+function Base.mightalias(a::MemoryVector, b::KNOWN_MEM_BACKED)
     return Base.mightalias(a, ImmutableMemoryView(b))
 end
 
-function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryView)
+function Base.mightalias(a::KNOWN_MEM_BACKED, b::MemoryVector)
     return Base.mightalias(ImmutableMemoryView(a), b)
 end
 
@@ -123,7 +131,7 @@ end
 # need to handle the empty case.
 function Base.getindex(v::MemoryView{T, M}, idx::Base.OneTo) where {T, M}
     @boundscheck checkbounds(v, idx)
-    return unsafe_new_memoryview(M, v.ref, last(idx))
+    return unsafe_new_memoryview(M, v.ref, Int(last(idx))::Int)
 end
 
 Base.getindex(@nospecialize(v::MemoryView), ::Colon) = v
@@ -178,34 +186,51 @@ function truncate_start(mem::MemoryView{T, M}, from::Integer) where {T, M}
     return unsafe_new_memoryview(M, newref, length(mem) - frm + 1)
 end
 
-function Base.unsafe_copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.unsafe_copyto!(
+        dst::MutableMemoryVector{T},
+        src::MemoryVector{T},
+    ) where {T}
     iszero(length(src)) && return dst
     @inbounds unsafe_copyto!(dst.ref, src.ref, length(src) % UInt)
     return dst
 end
 
-function Base.copy!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.copy!(
+        dst::MutableMemoryVector{T},
+        src::MemoryVector{T},
+    ) where {T}
     @boundscheck length(dst) == length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
-function Base.copyto!(dst::MutableMemoryView{T}, src::MemoryView{T}) where {T}
+function Base.copyto!(
+        dst::MutableMemoryVector{T},
+        src::MemoryVector{T},
+    ) where {T}
     @boundscheck length(dst) ≥ length(src) || throw_lightboundserror(dst, eachindex(src))
     return unsafe_copyto!(dst, src)
 end
 
 # This function is kind of bad API, and users should not use it. However, without this overload,
 # the fallback definition is used instead which is even worse.
-function Base.copyto!(dst::MutableMemoryView, di::Integer, src::MemoryView{T}, si::Integer, N::Integer) where {T}
+function Base.copyto!(
+        dst::MutableMemoryVector,
+        di::Integer,
+        src::MemoryVector,
+        si::Integer,
+        N::Integer,
+    )
     di = Int(di)::Int
     si = Int(si)::Int
     N = Int(N)::Int
-    dst = dst[di:(di + N - 1)]
-    src = src[si:(si + N - 1)]
-    return copyto!(dst, src)
+    @boundscheck N < 0 && throw(ArgumentError("Number of elements to copy must be non-negative."))
+    dstview = MemoryView(dst)[di:(di + N - 1)]
+    srcview = MemoryView(src)[si:(si + N - 1)]
+    copyto!(dstview, srcview)
+    return dst
 end
 
-function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
+function Base.fill!(v::MutableMemoryVector{UInt8}, x::Integer)
     xT = convert(UInt8, x)::UInt8
     isempty(v) && return v
     GC.@preserve v @ccall memset(
@@ -217,7 +242,7 @@ function Base.fill!(v::MutableMemoryView{UInt8}, x::Integer)
 end
 
 # Optimised methods that don't boundscheck
-function Base.findnext(p::Function, mem::MemoryView, start::Integer)
+function Base.findnext(p::Function, mem::MemoryVector, start::Integer)
     i = Int(start)::Int
     @boundscheck (i < 1 && throw_lightboundserror(mem, i))
     @inbounds while i <= length(mem)
@@ -234,30 +259,30 @@ end
 #   a Fix2 with a non-concrete type, but I'm not sure.
 function Base.findnext(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-        mem::MemoryView{UInt8},
+        mem::MemoryVector{UInt8},
         start::Integer,
     )
-    return _findnext(mem, p.x, start)
+    return findnextbyte(mem, p.x, start)
 end
 
 function Base.findnext(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
-        mem::MemoryView{Int8},
+        mem::MemoryVector{Int8},
         start::Integer,
     )
-    return _findnext(mem, p.x, start)
+    return findnextbyte(mem, p.x, start)
 end
 
 function Base.findnext(
         ::typeof(iszero),
-        mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+        mem::Union{MemoryVector{Int8}, MemoryVector{UInt8}},
         i::Integer,
     )
-    return _findnext(mem, zero(eltype(mem)), i)
+    return findnextbyte(mem, zero(eltype(mem)), i)
 end
 
-Base.@propagate_inbounds function _findnext(
-        mem::MemoryView{T},
+Base.@propagate_inbounds function findnextbyte(
+        mem::MemoryVector{T},
         byte::T,
         start::Integer,
     ) where {T <: Union{UInt8, Int8}}
@@ -265,8 +290,8 @@ Base.@propagate_inbounds function _findnext(
     @boundscheck(start < 1 && throw_lightboundserror(mem, start))
     start > length(mem) && return nothing
     im = @inbounds truncate_start_nonempty(ImmutableMemoryView(mem), start)
-    v_ind = @something memchr(im, byte) return nothing
-    return v_ind + start - 1
+    viewindex = @something memchr(im, byte) return nothing
+    return viewindex + start - 1
 end
 
 function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UInt8}}
@@ -282,7 +307,7 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
     return p == C_NULL ? nothing : (p - ptr) % Int + 1
 end
 
-function Base.findprev(p::Function, mem::MemoryView, start::Integer)
+function Base.findprev(p::Function, mem::MemoryVector, start::Integer)
     i = Int(start)::Int
     @boundscheck (i > length(mem) && throw_lightboundserror(mem, i))
     @inbounds while i > 0
@@ -294,30 +319,30 @@ end
 
 function Base.findprev(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, UInt8},
-        mem::MemoryView{UInt8},
+        mem::MemoryVector{UInt8},
         start::Integer,
     )
-    return _findprev(mem, p.x, start)
+    return findprevbyte(mem, p.x, start)
 end
 
 function Base.findprev(
         p::Base.Fix2{<:Union{typeof(==), typeof(isequal)}, Int8},
-        mem::MemoryView{Int8},
+        mem::MemoryVector{Int8},
         start::Integer,
     )
-    return _findprev(mem, p.x, start)
+    return findprevbyte(mem, p.x, start)
 end
 
 function Base.findprev(
         ::typeof(iszero),
-        mem::Union{MemoryView{Int8}, MemoryView{UInt8}},
+        mem::Union{MemoryVector{Int8}, MemoryVector{UInt8}},
         i::Integer,
     )
-    return _findprev(mem, zero(eltype(mem)), i)
+    return findprevbyte(mem, zero(eltype(mem)), i)
 end
 
-Base.@propagate_inbounds function _findprev(
-        mem::MemoryView{T},
+Base.@propagate_inbounds function findprevbyte(
+        mem::MemoryVector{T},
         byte::T,
         start::Integer,
     ) where {T <: Union{UInt8, Int8}}
@@ -344,15 +369,16 @@ end
 const BitsTypes =
     (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, Int128, UInt128, Char)
 const Bits = Union{BitsTypes...}
-const BitMemory = Union{map(T -> MemoryView{T}, BitsTypes)...}
 
-# This dispatch makes sure that, if they have the same element bitstype, but the views
-# are of different types due to mutability, we still dispatch to the correct methpd.
-Base.:(==)(a::ImmutableMemoryView, b::MutableMemoryView) = a == ImmutableMemoryView(b)
-Base.:(==)(a::MutableMemoryView, b::ImmutableMemoryView) = ImmutableMemoryView(a) == b
+# Make sure to only use bytewise equality for the exact same element bitstype.
+function Base.:(==)(a::MemoryVector{T}, b::MemoryVector{T}) where {T <: Bits}
+    if !isbitstype(T)
+        return invoke(==, Tuple{AbstractArray, AbstractArray}, a, b)
+    end
+    return bitsequal(a, b)
+end
 
-# Make sure to only dispatch if it's the exact same memory type.
-function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
+function bitsequal(a, b)
     length(a) == length(b) || return false
     (eltype(a) === Union{} || Base.issingletontype(eltype(a))) && return true
     a.ref === b.ref && return true
@@ -365,7 +391,10 @@ function Base.:(==)(a::Mem, b::Mem) where {Mem <: BitMemory}
     return iszero(y)
 end
 
-function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
+function Base.cmp(
+        a::MemoryVector{UInt8},
+        b::MemoryVector{UInt8},
+    )
     y = if a.ref !== b.ref
         GC.@preserve a b begin
             aptr = Ptr{Nothing}(pointer(a))
@@ -379,10 +408,10 @@ function Base.cmp(a::MemoryView{UInt8}, b::MemoryView{UInt8})
     else
         Cint(0)
     end
-    return iszero(y) ? sign(length(a) - length(b)) : Int(y)
+    return iszero(y) ? sign(length(a) - length(b)) : Int(sign(y))
 end
 
-function Base.reverse!(mem::MutableMemoryView)
+function Base.reverse!(mem::MutableMemoryVector)
     start = 1
     stop = length(mem)
     @inbounds for i in 1:(div(length(mem) % UInt, 2) % Int)
@@ -483,7 +512,7 @@ function split_last(v::MemoryView)
 end
 
 """
-    split_at(v::T, i::Int) -> Tuple{T, T} where {T <: MemoryView}
+    split_at(v::T, i::Integer) -> Tuple{T, T} where {T <: MemoryView}
 
 Split a memory view into two at an index.
 
@@ -499,49 +528,76 @@ julia> split_at(MemoryView(Int8[1, 2, 3]), 4)
 (Int8[1, 2, 3], Int8[])
 ```
 """
-function split_at(v::MemoryView, i::Int)
+function split_at(v::MemoryView, i::Integer)
     @boundscheck if i ∉ 1:(lastindex(v) + 1)
         throw_lightboundserror(v, i)
     end
+    i = Int(i)::Int
     return (@inbounds(truncate(v, i - 1)), @inbounds(truncate_start(v, i)))
 end
 
 """
-    split_unaligned(v::T, ::Val{A}) -> Tuple{T, T} where {T <: MemoryView}
+    split_unaligned(v::T, alignment::Integer) -> Tuple{T, T} where {T <: MemoryView}
+    split_unaligned(v::T, ::Val{alignment}) -> Tuple{T, T} where {T <: MemoryView}
 
 Split memory view `v` into two views `a` and `b`, where `a` is the smallest prefix of `v`
-that guarantees the starting memory address of `b` is is aligned to the integer value `A`.
-`A` must be a normal bit-integer, and a power of two in the range 1:64.
+that guarantees the starting memory address of `b` is aligned to `alignment` bytes.
+`alignment` must be a power of two in the range 1:64.
+The `Val` form allows the compiler to optimize for a statically known alignment.
 
 If `v` is empty or already aligned, `a` will be empty.
 If no elements of `v` is aligned, `b` will be empty and `a` will be equal to `v`.
 The element type of `v` must be a bitstype.
+
+If `b` has no elements, no alignment is guaranteed about the empty `b`.
 
 !!! warning
     When using this function, make sure to `GC.@preserve v`, to make sure Julia
     does not move `v` in memory.
 
 # Examples:
-```
-julia> split_unaligned(MemoryView(Int16[1, 2, 3]), Val(8))
+```julia
+julia> split_unaligned(MemoryView(Int16[1, 2, 3]), 8)
 (Int16[], Int16[1, 2, 3])
 
-julia> split_unaligned(MemoryView(collect(0x01:0x20))[6:13], Val(8))
+julia> split_unaligned(MemoryView(collect(0x01:0x20))[6:13], 8)
 (UInt8[0x06, 0x07, 0x08], UInt8[0x09, 0x0a, 0x0b, 0x0c, 0x0d])
 ```
 """
-function split_unaligned(v::MemoryView{T, M}, ::Val{A}) where {A, T, M}
+function split_unaligned(v::MemoryView{T, M}, alignment::Integer) where {T, M}
     isbitstype(eltype(v)) || error("Alignment can only be computed for views of bitstypes")
-    A isa Bits || error("Invalid alignment")
-    in(A, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
-    alignment = A % UInt
+    in(alignment, (1, 2, 4, 8, 16, 32, 64)) || error("Invalid alignment")
+    alignment = alignment % UInt
     mask = alignment - 1
-    sz = Base.elsize(v)
+    sz = element_aligned_sizeof(T) % UInt
     # Early return here to avoid division by zero: Size sz is statically known,
     # this will be compiled away
     iszero(sz) && return (unsafe_new_memoryview(M, v.ref, 0), v)
-    ptr_int = GC.@preserve v UInt(pointer(v))
+    ptr_int = UInt(pointer(v))
     unaligned_bytes = ((alignment - (ptr_int & mask)) & mask)
-    n_elements = min(length(v), div(unaligned_bytes, sz % UInt) % Int)
+
+    # Already aligned: Early return
+    emp = @inbounds truncate(v, 0)
+    iszero(unaligned_bytes) && return (emp, v)
+
+
+    common = gcd(sz, alignment)
+    if !iszero(rem(unaligned_bytes, common))
+        return (v, emp)
+    end
+    period = div(alignment, common)
+    n_elements = if isone(period)
+        0
+    else
+        rem(
+            div(unaligned_bytes, common) * invmod(div(sz, common), period),
+            period,
+        ) % Int
+    end
+    if n_elements > length(v)
+        return @inbounds (v, emp)
+    end
     return @inbounds split_at(v, n_elements + 1)
 end
+
+@inline split_unaligned(v::MemoryView, ::Val{A}) where {A} = split_unaligned(v, A)

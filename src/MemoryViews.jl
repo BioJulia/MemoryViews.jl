@@ -1,6 +1,7 @@
 module MemoryViews
 
 export MemoryView,
+    RefVector,
     ImmutableMemoryView,
     MutableMemoryView,
     MemoryKind,
@@ -69,6 +70,8 @@ New types `T` which are backed by dense memory should implement:
 
 If `MemoryView(x)` is implemented, then `ImmutableMemoryView(x)` will
 automatically work, even if `MemoryView(x)` returns a mutable view.
+`MutableMemoryView(x)` also works, but throws an `ArgumentError` if
+`MemoryView(x)` returns an immutable view.
 
 It is not possible to mutate memory though an `ImmutableMemoryView`, but the existence
 of the view does not protect the same memory from being mutated though another
@@ -94,6 +97,13 @@ end
 
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
+
+# Base.memoryindex exists in Julia 1.13 onwards.
+@static if VERSION < v"1.13.0-DEV.1289"
+    memoryrefindex(ref::MemoryRef) = Core.memoryrefoffset(ref)
+else
+    memoryrefindex(ref::MemoryRef) = Base.memoryindex(ref)
+end
 
 """
     unsafe_from_parts(ref::MemoryRef{T}, len::Int)::MutableMemoryView{T}
@@ -128,17 +138,15 @@ function unsafe_from_parts(ref::MemoryRef, len::Int)
     return unsafe_new_memoryview(Mutable, ref, len)
 end
 
-"""
-    Base.memoryref(x::MemoryView{T})::MemoryRef{T}
-
-Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
-except if `x` is empty, where it may point to one element past the end.
-"""
-Base.memoryref(@nospecialize(x::MemoryView)) = x.ref
-
 _get_mutability(::MemoryView{T, M}) where {T, M} = M
 
 # Mutable mem views can turn into immutable ones, but not vice versa
+function MutableMemoryView(x)
+    v = MemoryView(x)::MemoryView
+    v isa MutableMemoryView || throw(ArgumentError("Cannot construct a mutable memory view from an immutable view"))
+    return v
+end
+
 ImmutableMemoryView(x) = ImmutableMemoryView(MemoryView(x)::MemoryView)
 function ImmutableMemoryView(x::MemoryView)
     return unsafe_new_memoryview(Immutable, x.ref, x.len)
@@ -195,7 +203,7 @@ See: [`MemoryKind`](@ref)
 """
 struct IsMemory{T <: MemoryView} <: MemoryKind
     function IsMemory{T}() where {T}
-        isconcretetype(T) || error("In IsMemory{T}, T must be concrete")
+        isconcretetype(T) || error("In IsMemory{T}, T must be concrete, got ", string(T))
         return new{T}()
     end
 end
@@ -214,6 +222,7 @@ MemoryKind(::Type) = NotMemory()
 MemoryKind(::Type{Union{}}) = NotMemory()
 MemoryKind(::Type{T}) where {T <: MemoryView} = IsMemory(T)
 
+include("refvector.jl")
 include("construction.jl")
 include("basic.jl")
 include("delimited.jl")
