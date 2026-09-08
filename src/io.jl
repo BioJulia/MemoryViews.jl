@@ -5,9 +5,15 @@
 function Base.readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer = length(v))
     nb = Int(nb)::Int
     nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
-
-    nb = min(nb, length(v))
-
+    if nb > length(v)
+        if v isa MemoryView
+            # Oversized requests require resizing, which MemoryView does not support.
+            # Call `resize!` to report this with a MethodError before reading any bytes.
+            resize!(v, nb)
+        else
+            nb = length(v)
+        end
+    end
     # A view of all the bytes not yet read
     remaining = @inbounds v[1:nb]
     while !isempty(remaining)
