@@ -5,9 +5,20 @@ Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
 ## 0.4.4
+### Added
+* `split_at(::MemoryView, ::Int)`'s signature has now been relaxed to
+  `split_at(::MemoryView, ::Integer)`.
+* The new `MutableMemoryView(x)` constructor guarantees a mutable memory view,
+  or throws an `ArgumentError`. Users still only need to add a constructor to
+  `MemoryView(::MyType)`.
+* New method `split_unaligned(::MemoryView, ::Integer)` when the alignment is not
+  known at compile time.
 * Add the `RefVector` type. This type is essentially a `MemoryView` with its
   length outlined, which makes it slightly more efficient when used as backing
   storage sized containers in some cases - see its documentation.
+
+### Fixes
+Many bug fixes. See git history for details.
 
 ## 0.4.3
 * Allow compatibility with LibDeflate v1
