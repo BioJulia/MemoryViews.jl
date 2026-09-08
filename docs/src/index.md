@@ -159,5 +159,5 @@ refvector = RefVector(memory)
 ```
 
 `RefVector` can be constructed from a `Memory`, in which case the input is used as the storage.
-Use `unsafe_refvector` to construct one from a `MemoryRef`, after ensuring the reference does not point to immutable memory.
+Use `RefVector(ref)` or `RefVector{T}(ref::MemoryRef{T})` to construct one from a `MemoryRef`, aliasing the memory from the reference to the end of the underlying `Memory`.
 It also has a `RefVector{T}(undef, len::Int)` constructor, which is equivalent to `RefVector(Memory{T}(undef, len))`.

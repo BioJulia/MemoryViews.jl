@@ -1,21 +1,9 @@
 """
-    unsafe_refvector(ref::MemoryRef{T})::RefVector{T}
-
-Create a `RefVector{T}` from an existing `MemoryRef{T}`, aliasing
-its memory.
-Users must ensure that the `MemoryRef` does not refer to immutable memory,
-e.g. is not obtained from a `String` or `ImmutableMemoryView`
-
-Because the resulting `RefVector` spans from the input `ref` and
-until the end of the underlying `Memory`, it may contain uninitialized
-elements.
-"""
-function unsafe_refvector end
-
-"""
     RefVector{T} <: DenseVector{T}
     RefVector{T}(undef, len::Integer)
     RefVector(memory::Memory)
+    RefVector(ref::MemoryRef)
+    RefVector{T}(ref::MemoryRef{T})
 
 A mutable `DenseVector` backed by `Memory`.
 
@@ -27,7 +15,8 @@ Constructing from `Memory` uses the entire `Memory` as the backing storage.
 The `undef` constructor creates a new uninitialized `Memory` of the given
 `len`.
 
-See [`unsafe_refvector`](@ref) to construct a `RefVector` from a `MemoryRef`.
+Constructing from `MemoryRef` aliases its memory, spanning from the reference
+to the end of the underlying `Memory`. This may include uninitialized elements.
 
 Slicing into a `RefVector` gives a `MutableMemoryView` aliasing the `RefVector`.
 
@@ -65,7 +54,7 @@ true
 struct RefVector{T} <: DenseVector{T}
     ref::MemoryRef{T}
 
-    global function unsafe_refvector(ref::MemoryRef{T}) where {T}
+    function RefVector{T}(ref::MemoryRef{T}) where {T}
         return new{T}(ref)
     end
 end
@@ -77,7 +66,8 @@ function RefVector{T}(::UndefInitializer, len::Integer) where {T}
     return RefVector(Memory{T}(undef, Int(len)::Int))
 end
 
-RefVector{T}(memory::Memory{T}) where {T} = unsafe_refvector(memoryref(memory))
+RefVector(ref::MemoryRef{T}) where {T} = RefVector{T}(ref)
+RefVector{T}(memory::Memory{T}) where {T} = RefVector{T}(memoryref(memory))
 RefVector(memory::Memory{T}) where {T} = RefVector{T}(memory)
 
 """
@@ -110,7 +100,7 @@ Base.@propagate_inbounds Base.view(v::RefVector, idx::AbstractUnitRange) = v[idx
 
 function Base.copy(x::RefVector)
     mem = copy(MemoryView(x))
-    return unsafe_refvector(mem.ref)
+    return RefVector(mem.ref)
 end
 
 function Base.similar(@nospecialize(::RefVector), ::Type{T}, dims::Tuple{Int}) where {T}
@@ -122,7 +112,7 @@ Base.empty(::Type{RefVector{T}}) where {T} = RefVector{T}(undef, 0)
 
 function Base.reverse(mem::RefVector)
     reversed = reverse(MemoryView(mem))
-    return unsafe_refvector(reversed.ref)
+    return RefVector(reversed.ref)
 end
 
 Iterators.reverse(mem::RefVector) = Iterators.reverse(MemoryView(mem))
