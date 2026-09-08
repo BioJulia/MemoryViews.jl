@@ -897,8 +897,23 @@ end
     data = b"Hello, world!"
     buf = IOBuffer(data)
     v = fill(0xaa, 8)
-    readbytes!(buf, MemoryView(v), 10)
-    @test v == b"Hello, w"
+    @test_throws MethodError readbytes!(buf, MemoryView(v), 10)
+    @test all(==(0xaa), v)
+    @test position(buf) == 0
+    @test_throws MethodError readbytes!(IOBuffer(), MemoryView(v), 10)
+
+    # A short read with nb below the view length reports the bytes actually read
+    buf = IOBuffer(b"abc")
+    @test readbytes!(buf, MemoryView(v), 5) == 3
+    @test v == vcat(b"abc", fill(0xaa, 5))
+    @test readbytes!(buf, MemoryView(v), 5) == 0
+
+    # A zero-byte request leaves the stream and destination unchanged
+    buf = IOBuffer(data)
+    before = copy(v)
+    @test readbytes!(buf, MemoryView(v), 0) == 0
+    @test v == before
+    @test position(buf) == 0
 
     # Negative nb is invalid
     @test_throws ArgumentError readbytes!(IOBuffer(data), MemoryView(v), -1)

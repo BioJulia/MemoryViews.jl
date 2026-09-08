@@ -85,3 +85,14 @@ was always an `ImmutableMemoryView`, even for mutable input.
 Mitigation: Code that relied on two applications of `Iterators.reverse(::MemoryView)`
 always returning an `ImmutableMemoryView` should explicitly construct an
 `ImmutableMemoryView` from the result of applying `Iterators.reverse` twice.
+
+## `readbytes!` now throws when `nb > length(v)`
+Previously, `readbytes!(io, v::MutableMemoryView{UInt8}, nb)` silently limited
+its request to `min(length(v), nb)` bytes. Now, an oversized request attempts
+to call `resize!(v, nb)`, which throws a `MethodError` before reading any bytes
+because memory views cannot be resized. This also applies when the stream is
+empty or contains fewer than `nb` bytes.
+
+Mitigation: Calls that omit the third argument need no changes.
+To preserve the previous behaviour when `nb` may exceed `length(v)`, replace
+`readbytes!(io, v, nb)` with `readbytes!(io, v, min(nb, length(v)))`.

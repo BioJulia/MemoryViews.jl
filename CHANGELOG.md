@@ -5,6 +5,8 @@ Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
 ## 0.5.0
+See the [migration guide](docs/src/migration.md).
+
 ### Breaking changes
 * `DelimitedIterator{T, M}` is now `DelimitedIterator{T, M, D}`, where `D` is
   the delimiter type. `split_each(data, d)` now accepts any delimiter satisfying
@@ -16,8 +18,9 @@ not be mentioned here, because they do not impact how the package is to be used.
 * `Base.memoryref(::ImmutableMemoryView)` now throws a `MethodError`.
   This method was unsafe, and so has been removed.
   To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
-* Removed `parent(::ImmutableMemoryView)`, which exposed mutable backing memory
-  from a read-only view. `parent(::MutableMemoryView)` remains available.
+* `parent(::MemoryView)` now returns a view of the same type spanning the entire
+  backing memory, preserving mutability, instead of returning the backing `Memory`.
+  Use `unsafe_memory` when the underlying `Memory` is required.
 * `Base.cconvert(::Type{<:Ptr}, ::MemoryView)` now returns the input view.
   Use `Base.unsafe_convert` or `pointer` to obtain a pointer.
 * The `MemoryView` fields and exact representation are now explicitly internal
@@ -26,6 +29,9 @@ not be mentioned here, because they do not impact how the package is to be used.
 * Removed the `MemoryKind` interface, including the `IsMemory` and `NotMemory`
   types and the `inner(::IsMemory)` function. Dispatch directly on `MemoryView`
   instead.
+* `readbytes!(::IO, v::MutableMemoryView{UInt8}, nb)` now throws a `MethodError`
+  before reading if `nb > length(v)`, because memory views cannot be resized.
+  Previously, it silently limited the request to `length(v)` bytes.
 
 ## 0.4.2
 * Added `MemoryViews.truncate(v, i)` similar to `v[1:i]`, but may be more efficient.
