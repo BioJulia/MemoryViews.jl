@@ -23,8 +23,9 @@ sizeof(MemoryView{T, M}) == sizeof(MemoryRef{T}) + sizeof(Int)
 ```
 
 Its fields are internal and are not part of the public API. Use `length`,
-`Base.memoryref` for mutable views, [`unsafe_memoryref`](@ref) when explicitly
-unsafe access is necessary, or `pointer` rather than accessing fields directly.
+`Base.memoryref` and [`memory`](@ref) for mutable views, [`unsafe_memoryref`](@ref)
+and [`unsafe_memory`](@ref) when explicitly unsafe access is necessary, or
+`pointer` rather than accessing fields directly.
 
 The `M` parameter is either `Mutable` or `Immutable`, which are unexported but public types defined in this package.
 MemoryViews also provide the following aliases for convenience:

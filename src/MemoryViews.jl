@@ -4,6 +4,7 @@ export MemoryView,
     RefVector,
     ImmutableMemoryView,
     MutableMemoryView,
+    memory,
     split_each,
     unsafe_from_parts,
     unsafe_memoryref,
@@ -155,6 +156,32 @@ memory assumed to be immutable.
     the memory backing a `String`. This can cause undefined behavour.
 """
 unsafe_memoryref(@nospecialize(x::MemoryView)) = x.ref
+
+"""
+    memory(v::MutableMemoryView{T})::Memory{T}
+
+Get the entire `Memory` underlying `v`, including elements outside the view.
+The returned memory is shared with `v`, not copied.
+
+To get the underlying `Memory` from an immutable `MemoryView`, use
+[`unsafe_memory`](@ref).
+
+# Examples
+```jldoctest
+julia> backing = Memory{Int}([1, 2, 3]);
+
+julia> v = MemoryView(backing)[2:3];
+
+julia> memory(v) === backing
+true
+
+julia> memory(v)[2] = 4;
+
+julia> v[1]
+4
+```
+"""
+memory(@nospecialize(v::MutableMemoryView)) = unsafe_memory(v)
 
 """
     unsafe_memory(v::MemoryView{T})::Memory{T}
