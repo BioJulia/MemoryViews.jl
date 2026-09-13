@@ -769,6 +769,28 @@ end
     @test backing == [10, 50, 30]
 end
 
+@testset "memory" begin
+    for backing in (Memory{Int}([1, 2, 3]), Memory{String}(["a", "b", "c"]), Memory{Nothing}(undef, 3))
+        full = MemoryView(backing)
+        for inds in (1:3, 2:3, 2:1, 4:3)
+            v = full[inds]
+            @test (@inferred memory(v)) === backing
+        end
+    end
+
+    backing = Memory{Int}()
+    @test (@inferred memory(MemoryView(backing))) === backing
+
+    v = MemoryView([1, 2, 3])[2:3]
+    memory(v)[2] = 4
+    @test v[1] == 4
+    v[2] = 5
+    @test memory(v)[3] == 5
+
+    @test_throws MethodError memory(ImmutableMemoryView(v))
+    @test_throws MethodError memory(MemoryView("abc"))
+end
+
 @testset "unsafe_memory" begin
     for mem in (Memory{Int}([1, 2, 3]), Memory{String}(["a", "b", "c"]), Memory{Nothing}(undef, 3))
         for full in (MemoryView(mem), ImmutableMemoryView(mem))

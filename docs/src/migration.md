@@ -35,11 +35,10 @@ now returns `ImmutableMemoryView{T}`, and `parent(::MutableMemoryView{T})` retur
 
 Mitigation: Where previous use of `parent` only relied on returning a `DenseVector` covering
 the whole underlying `Memory`, nothing needs to be done.
-Where previous use relied on it returning `Memory`, review to make sure the existing code did not
-mutate immutable memory.
+Where previous use relied on it returning specifically `Memory`, review to make sure the existing code did not mutate immutable memory.
 Where the resulting `Memory` was mutated, consider switching to `MutableMemoryView`.
-Where the resulting `Memory` was not mutated, replace it with the new
-`unsafe_memory(::MemoryView{T})::Memory{T}`.
+
+To obtain the underlying `Memory`, preferably use `memory(::MutableMemoryView{T})::Memory{T}`, or the unsafe variant `unsafe_memory(::MemoryView{T})::Memory{T}`
 
 ### Change 2: `memoryref` is now defined for `MutableMemoryView` only, not `MemoryView` in general
 `memoryref(::ImmutableMemoryView)` returning a mutable `MemoryRef` made it too easy to accidentally

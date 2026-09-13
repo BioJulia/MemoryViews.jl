@@ -20,7 +20,8 @@ See the [migration guide](docs/src/migration.md).
   To get a `MemoryRef` from `ImmutableMemoryView`, use the new `unsafe_memoryref` function.
 * `parent(::MemoryView)` now returns a view of the same type spanning the entire
   backing memory, preserving mutability, instead of returning the backing `Memory`.
-  Use `unsafe_memory` when the underlying `Memory` is required.
+  Use the new `memory(::MutableMemoryView)` method, or the new
+  `unsafe_memory(::MemoryView)` to obtain the underlying `Memory`.
 * `Base.cconvert(::Type{<:Ptr}, ::MemoryView)` now returns the input view.
   Use `Base.unsafe_convert` or `pointer` to obtain a pointer.
 * The `MemoryView` fields and exact representation are now explicitly internal
