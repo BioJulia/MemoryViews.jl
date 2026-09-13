@@ -5,7 +5,7 @@ Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
 ## 0.5.0
-See the [migration guide](docs/src/migration.md).
+See the [migration guide](https://biojulia.dev/MemoryViews.jl/previews/PR52/migration/).
 
 ### Breaking changes
 * `DelimitedIterator{T, M}` is now `DelimitedIterator{T, M, D}`, where `D` is
