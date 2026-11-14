@@ -92,8 +92,7 @@ function Base.empty(::MemoryView{T1, M}, ::Type{T2}) where {T1, T2, M}
 end
 
 Base.empty(::Type{MemoryView{E, M}}) where {E, M} = unsafe_new_memoryview(M, memoryref(Memory{E}()), 0)
-Base.pointer(x::MemoryVector{T}) where {T} = Ptr{T}(pointer(x.ref))
-Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryVector{T}) where {T} = pointer(v)
+Base.unsafe_convert(::Type{Ptr{T}}, v::MemoryVector{T}) where {T} = Ptr{T}(pointer(v.ref))
 Base.cconvert(::Type{<:Ptr{T}}, v::MemoryView{T}) where {T} = v
 Base.cconvert(::Type{<:Ptr{T}}, v::RefVector{T}) where {T} = v.ref
 Base.elsize(::Type{<:MemoryVector{T}}) where {T} = Base.elsize(Memory{T})
@@ -235,7 +234,7 @@ end
 # This function is kind of bad API, and users should not use it. However, without this overload,
 # the fallback definition is used instead which is even worse.
 function Base.copyto!(
-        dst::MutableMemoryVector,
+        dst::Union{MutableMemoryVector, Array, Memory},
         di::Integer,
         src::MemoryVector,
         si::Integer,
