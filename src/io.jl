@@ -3,6 +3,17 @@
 # is a performance disaster.
 # This encourages implementors of IOs to implement a method for this.
 function Base.readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer = length(v))
+    return _readbytes!(io, v, nb)
+end
+
+# Resolve ambiguity with Base's method for AbstractPipe.
+# The implementation only uses `eof`, `bytesavailable` and `unsafe_read`,
+# which Base forwards to the reader end of the pipe.
+function Base.readbytes!(io::Base.AbstractPipe, v::MutableMemoryVector{UInt8}, nb::Integer = length(v))
+    return _readbytes!(io, v, nb)
+end
+
+function _readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer)
     nb = Int(nb)::Int
     nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
     if nb > length(v)
