@@ -32,12 +32,3 @@ end
 function Base.copy!(mem::MutableMemoryVector{T}, A::Union{Memory{T}, Array{T}}) where {T}
     return copy!(mem, MemoryView(A))
 end
-
-function Base.append!(v::Vector{T}, mem::MemoryVector{T}) where {T}
-    isempty(mem) && return v
-    old_len = length(v)
-    resize!(v, length(v) + length(mem))
-    dst = @inbounds MemoryView(v)[(old_len + 1):end]
-    @inbounds copy!(dst, mem)
-    return v
-end

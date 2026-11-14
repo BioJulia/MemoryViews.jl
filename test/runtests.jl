@@ -1425,6 +1425,22 @@ end
         @test refdestination == memorysource
         @test copy!(refdestination, memorysource) === refdestination
         @test refdestination == memorysource
+
+        # Five-argument copyto! into Array and Memory
+        arraydestination = zeros(Int, 5)
+        @test copyto!(arraydestination, 2, source, 2, 2) === arraydestination
+        @test arraydestination == [0, 13, 17, 0, 0]
+        @test_throws LightBoundsError copyto!(arraydestination, 5, source, 1, 2)
+        @test_throws LightBoundsError copyto!(arraydestination, 1, source, 3, 2)
+        @test_throws ArgumentError copyto!(arraydestination, 1, source, 1, -1)
+
+        matrixdestination = zeros(Int, 2, 2)
+        @test copyto!(matrixdestination, 2, MemoryView([3, 5]), 1, 2) === matrixdestination
+        @test matrixdestination == [0 5; 3 0]
+
+        memorydestination = Memory{Int}([0, 0, 0])
+        @test copyto!(memorydestination, 1, ImmutableMemoryView([4, 6]), 1, 2) === memorydestination
+        @test memorydestination == [4, 6, 0]
     end
 
     @testset "Vector append!" begin
