@@ -4,6 +4,10 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.5.1
+* Fix ambiguity with AbstractPipeReader
+* Remove some invalidations
+
 ## 0.5.0
 See the [migration guide](https://biojulia.dev/MemoryViews.jl/previews/PR52/migration/).
 
