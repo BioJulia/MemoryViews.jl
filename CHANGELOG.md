@@ -4,6 +4,10 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## Unreleased
+* Add `StaticView{N, T, M}`, a view of `Memory` where the length `N` is a type
+  parameter, along with the aliases `MutableStaticView` and `ImmutableStaticView`.
+
 ## 0.5.1
 * Fix ambiguity with AbstractPipeReader
 * Remove some invalidations

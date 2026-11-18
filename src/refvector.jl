@@ -59,8 +59,8 @@ struct RefVector{T} <: DenseVector{T}
     end
 end
 
-const MemoryVector{T} = Union{MemoryView{T}, RefVector{T}}
-const MutableMemoryVector{T} = Union{MutableMemoryView{T}, RefVector{T}}
+const MemoryVector{T} = Union{MemoryView{T}, RefVector{T}, StaticView{<:Any, T}}
+const MutableMemoryVector{T} = Union{MutableMemoryView{T}, RefVector{T}, MutableStaticView{<:Any, T}}
 
 function RefVector{T}(::UndefInitializer, len::Integer) where {T}
     return RefVector(Memory{T}(undef, Int(len)::Int))

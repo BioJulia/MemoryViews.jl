@@ -379,6 +379,363 @@ end
     @test_throws LightBoundsError copyto!(refvector, 4, refvector, 1, 2)
 end
 
+@testset "StaticView interface" begin
+    mem = Memory{Int}([2, 3, 5, 7])
+    sv = StaticView{4}(mem)
+
+    @test sv isa DenseVector{Int}
+    @test sv isa MutableStaticView{4, Int}
+    @test fieldnames(typeof(sv)) == (:ref,)
+    @test fieldtypes(typeof(sv)) == (MemoryRef{Int},)
+    @test sizeof(typeof(sv)) == sizeof(MemoryRef{Int})
+    @test length(sv) == 4
+    @test size(sv) == (4,)
+    @test axes(sv) == (Base.OneTo(4),)
+    @test IndexStyle(typeof(sv)) === Base.IndexLinear()
+    @test strides(sv) == (1,)
+    @test sizeof(sv) == 4 * sizeof(Int)
+    @test collect(sv) == [2, 3, 5, 7]
+    @test Base.elsize(typeof(sv)) == sizeof(Int)
+
+    sv[2] = 11
+    @test mem[2] == 11
+    @test sv[2] == 11
+    @test_throws LightBoundsError sv[0]
+    @test_throws LightBoundsError sv[5]
+    @test_throws LightBoundsError sv[5] = 1
+
+    offset = StaticView{2}(MemoryView(mem), 2)
+    @test parentindices(offset) == (2:3,)
+    @test memoryref(offset) === memoryref(mem, 2)
+    @test unsafe_memoryref(offset) === memoryref(mem, 2)
+    @test memory(offset) === mem
+    @test unsafe_memory(offset) === mem
+    @test parent(offset) === MemoryView(mem)
+    @test parent(ImmutableStaticView(offset)) === ImmutableMemoryView(mem)
+
+    str = "abc"
+    immutable = StaticView{3}(str)
+    @test immutable isa ImmutableStaticView{3, UInt8}
+    @test_throws MethodError memoryref(immutable)
+    @test_throws MethodError memory(immutable)
+    @test_throws CanonicalIndexError immutable[1] = 0x01
+    @test pointer(unsafe_memoryref(immutable)) == pointer(str)
+    @test parent(immutable) isa ImmutableMemoryView{UInt8}
+
+    for (sview, items) in Any[
+            (StaticView{3}([1, 2, 3]), [1, 2, 3]),
+            (StaticView{0}(String[]), String[]),
+        ]
+        @test [i for i in sview] == items
+        @test Vector(sview) == items
+        @test Memory(sview) == items
+    end
+end
+
+@testset "StaticView construction" begin
+    v = [1, 2, 3, 4, 5]
+    mv = MemoryView(v)
+
+    # StaticView{N}
+    sv = @inferred StaticView{5}(mv)
+    @test sv isa MutableStaticView{5, Int}
+    @test sv == v
+    @test memoryref(sv) === memoryref(mv)
+    @test @inferred(StaticView{5}(v)) === sv
+    @test StaticView{3}(view(v, 2:4)) == [2, 3, 4]
+    @test StaticView{3}(Memory{Int}([1, 2, 3])) isa MutableStaticView{3, Int}
+    @test StaticView{3}(RefVector(Memory{Int}([1, 2, 3]))) == [1, 2, 3]
+    @test StaticView{5}(sv) === sv
+    @test StaticView{3}("abc") isa ImmutableStaticView{3, UInt8}
+    @test StaticView{2}(SubString("abcd", 2, 3)) == b"bc"
+    @test StaticView{3}(codeunits("abc")) isa ImmutableStaticView{3, UInt8}
+    @test StaticView{0}(Int[]) isa MutableStaticView{0, Int}
+    @test isempty(StaticView{0}(Int[]))
+
+    # StaticView{N, T} and StaticView{N, T, M}
+    @test @inferred(StaticView{5, Int}(v)) === sv
+    @test_throws TypeError StaticView{5, UInt}(v)
+    @test @inferred(ImmutableStaticView{5, Int}(v)) === ImmutableStaticView(sv)
+    @test @inferred(MutableStaticView{5, Int}(v)) === sv
+    @test_throws ArgumentError MutableStaticView{3, UInt8}("abc")
+    @test ImmutableStaticView{3, UInt8}("abc") isa ImmutableStaticView{3, UInt8}
+
+    # Mutability given, eltype inferred
+    @test @inferred(ImmutableStaticView{5}(v)) === ImmutableStaticView(sv)
+    @test @inferred(MutableStaticView{5}(v)) === sv
+    @test @inferred(ImmutableStaticView{3}("abc")) isa ImmutableStaticView{3, UInt8}
+    @test_throws ArgumentError MutableStaticView{3}("abc")
+    @test_throws DimensionMismatch ImmutableStaticView{4}(v)
+    @test_throws ArgumentError ImmutableStaticView{-1}(Int[])
+
+    # Mutability conversions
+    @test StaticView(sv) === sv
+    @test ImmutableStaticView(sv) isa ImmutableStaticView{5, Int}
+    @test ImmutableStaticView(sv) == sv
+    @test MutableStaticView(sv) === sv
+    @test_throws ArgumentError MutableStaticView(ImmutableStaticView(sv))
+    @test MemoryView(sv) === mv
+    @test MemoryView(ImmutableStaticView(sv)) === ImmutableMemoryView(mv)
+    @test ImmutableMemoryView(sv) === ImmutableMemoryView(mv)
+    @test MutableMemoryView(sv) === mv
+    @test_throws ArgumentError MutableMemoryView(ImmutableStaticView(sv))
+
+    # Length mismatch
+    @test_throws DimensionMismatch StaticView{4}(v)
+    @test_throws DimensionMismatch StaticView{6}(v)
+    @test_throws DimensionMismatch StaticView{4, Int}(v)
+    @test_throws DimensionMismatch ImmutableStaticView{4, Int}(v)
+
+    # Invalid length parameters
+    @test_throws ArgumentError StaticView{-1}(Int[])
+    @test_throws ArgumentError StaticView{Int32(5)}(v)
+    @test_throws ArgumentError StaticView{UInt8}(v)
+    @test_throws ArgumentError StaticView{0x05, Int}(v)
+
+    # With start index
+    sv2 = @inferred StaticView{3}(mv, 2)
+    @test sv2 isa MutableStaticView{3, Int}
+    @test sv2 == [2, 3, 4]
+    @test memoryref(sv2) === memoryref(mv[2:4])
+    @test StaticView{3}(mv, UInt8(3)) == [3, 4, 5]
+    @test StaticView{5}(mv, 1) === sv
+    @test StaticView{2}(ImmutableMemoryView(v), 4) isa ImmutableStaticView{2, Int}
+    @test StaticView{2}(sv, 2) == [2, 3]
+    @test StaticView{2}(RefVector(Memory{Int}(v)), 4) == [4, 5]
+    @test isempty(StaticView{0}(mv, 1))
+    @test isempty(StaticView{0}(mv, 6))
+    @test isempty(StaticView{0}(MemoryView(Int[]), 1))
+    for (N, start) in [(3, 0), (3, 4), (3, -1), (6, 1), (0, 0), (0, 7), (1, typemin(Int)), (2, typemax(Int))]
+        @test_throws LightBoundsError StaticView{N}(mv, start)
+    end
+    @test_throws ArgumentError StaticView{-1}(mv, 1)
+end
+
+@testset "StaticView range indexing" begin
+    v = [1, 2, 3, 4, 5]
+    sv = StaticView{5}(v)
+
+    @test @inferred(sv[2:4]) isa MutableMemoryView{Int}
+    @test sv[2:4] == [2, 3, 4]
+    @test sv[Base.OneTo(2)] == [1, 2]
+    @test sv[UInt(2):UInt(3)] == [2, 3]
+    @test sv[3:2] == Int[]
+    @test sv[:] === sv
+    @test view(sv, 2:3) === sv[2:3]
+    @test_throws LightBoundsError sv[0:2]
+    @test_throws LightBoundsError sv[4:6]
+
+    # Slicing aliases the same memory
+    sv[2:3][1] = 10
+    @test v[2] == 10
+
+    imm = ImmutableStaticView(sv)
+    @test imm[1:2] isa ImmutableMemoryView{Int}
+    @test imm[:] === imm
+end
+
+@testset "StaticView copy, similar and empty" begin
+    v = [1, 2, 3]
+    sv = StaticView{3}(v)
+
+    cp = @inferred copy(sv)
+    @test cp isa MutableStaticView{3, Int}
+    @test cp == sv
+    @test !Base.mightalias(cp, sv)
+    cp[1] = 5
+    @test v[1] == 1
+    @test copy(StaticView{3}("abc")) isa ImmutableStaticView{3, UInt8}
+    @test copy(StaticView{3}("abc")) == b"abc"
+    empty_fv = StaticView{0}(String[])
+    @test copy(empty_fv) === empty_fv
+    strings = StaticView{2}(Vector{String}(undef, 2))
+    strings[1] = "a"
+    copied = copy(strings)
+    @test copied[1] == "a"
+    @test !isassigned(copied, 2)
+
+    @test @inferred(similar(sv)) isa MutableStaticView{3, Int}
+    @test @inferred(similar(sv, UInt8)) isa MutableStaticView{3, UInt8}
+    @test @inferred(similar(ImmutableStaticView(sv))) isa MutableStaticView{3, Int}
+    @test @inferred(similar(sv, UInt8, (5,))) isa MutableMemoryView{UInt8}
+    @test length(similar(sv, UInt8, (5,))) == 5
+    @test similar(sv, (2,)) isa MutableMemoryView{Int}
+
+    @test @inferred(empty(sv)) isa MutableStaticView{0, Int}
+    @test @inferred(empty(sv, UInt8)) isa MutableStaticView{0, UInt8}
+    @test empty(ImmutableStaticView(sv)) isa ImmutableStaticView{0, Int}
+    @test empty(MutableStaticView{4, UInt8}) isa MutableStaticView{0, UInt8}
+    @test isempty(empty(sv))
+end
+
+@testset "StaticView pointers and aliasing" begin
+    v = [1, 2, 3, 4]
+    sv = StaticView{2}(MemoryView(v), 2)
+    @test pointer(sv) == pointer(v, 2)
+    @test Base.unsafe_convert(Ptr{Int}, Base.cconvert(Ptr{Int}, sv)) == pointer(v, 2)
+    @test Base.cconvert(Ptr{Int}, sv) === sv
+    GC.@preserve v begin
+        @test unsafe_load(pointer(sv), 2) == 3
+    end
+    @test Base.mightalias(sv, v)
+    @test Base.mightalias(sv, MemoryView(v)[3:4])
+    @test !Base.mightalias(sv, MemoryView(v)[4:4])
+    @test !Base.mightalias(sv, StaticView{1}(MemoryView(v), 1))
+    @test !Base.mightalias(sv, [1, 2])
+end
+
+@testset "StaticView equality and cmp" begin
+    # Small views use a separate implementation from large ones
+    for N in (0, 1, 7, 16, 128, 129, 300)
+        a = rand(UInt8, N)
+        b = copy(a)
+        fa, fb = StaticView{N}(a), StaticView{N}(b)
+        @test fa == fb
+        @test fa == ImmutableStaticView(fb)
+        @test fa == MemoryView(b)
+        @test MemoryView(a) == fb
+        @test cmp(fa, fb) == 0
+        if N > 0
+            b[end] ⊻= 0x01
+            @test fa != fb
+            @test cmp(fa, fb) == cmp(a, b)
+            b[end] = a[end]
+            b[1] ⊻= 0x80
+            @test fa != fb
+            @test cmp(fa, fb) == cmp(a, b)
+        end
+    end
+    for T in (Int16, Char, Int128)
+        a = rand(T, 5)
+        b = copy(a)
+        @test StaticView{5}(a) == StaticView{5}(b)
+        b[3] = b[3] == T(1) ? T(2) : T(1)
+        @test StaticView{5}(a) != StaticView{5}(b)
+    end
+    @test StaticView{2}([0x01, 0x02]) != StaticView{3}([0x01, 0x02, 0x03])
+    @test cmp(StaticView{2}("ab"), StaticView{3}("abc")) == -1
+    @test StaticView{2}([1.0, -0.0]) == StaticView{2}([1.0, 0.0])
+    @test StaticView{1}([NaN]) != StaticView{1}([NaN])
+    @test StaticView{2}([1, 2]) == StaticView{2}([1.0, 2.0])
+
+    # Non-bitstype eltypes in the bits union compare by value
+    a = Union{Int8, UInt8}[Int8(1), UInt8(2)]
+    b = Union{Int8, UInt8}[UInt8(1), Int8(2)]
+    @test StaticView{2}(a) == StaticView{2}(b)
+    @test isequal(StaticView{2}(a), StaticView{2}(b))
+
+    @test hash(StaticView{3}([1, 2, 3])) == hash([1, 2, 3])
+end
+
+@testset "StaticView mutation" begin
+    v = zeros(UInt8, 6)
+    sv = StaticView{4}(MemoryView(v), 2)
+    fill!(sv, 0x05)
+    @test v == [0x00, 0x05, 0x05, 0x05, 0x05, 0x00]
+    fill!(StaticView{2}([1, 2]), 9) == [9, 9]
+
+    src = StaticView{4}(b"abcd")
+    @test copyto!(sv, src) === sv
+    @test v == [0x00, b"abcd"..., 0x00]
+    @test copy!(sv, StaticView{4}(b"wxyz")) === sv
+    @test v == [0x00, b"wxyz"..., 0x00]
+    @test_throws LightBoundsError copy!(sv, StaticView{3}(b"abc"))
+    @test_throws LightBoundsError copyto!(sv, StaticView{5}(b"abcde"))
+    copyto!(sv, MemoryView(b"12"))
+    @test v == [0x00, b"12yz"..., 0x00]
+    copyto!(sv, 3, MemoryView(b"AB"), 1, 2)
+    @test v == [0x00, b"12AB"..., 0x00]
+    w = zeros(UInt8, 4)
+    @test copyto!(w, sv) === w
+    @test w == b"12AB"
+    @test copy!(UInt8[], sv) == b"12AB"
+    @test copy!(sv, b"pqrs") === sv
+    @test v == [0x00, b"pqrs"..., 0x00]
+
+    @test reverse!(sv) === sv
+    @test v == [0x00, b"srqp"..., 0x00]
+    reversed = @inferred reverse(sv)
+    @test reversed isa MutableStaticView{4, UInt8}
+    @test reversed == b"pqrs"
+    @test reverse(StaticView{3}("abc")) isa ImmutableStaticView{3, UInt8}
+    @test reverse(StaticView{3}("abc")) == b"cba"
+    @test reverse(StaticView{0}(Int[])) isa MutableStaticView{0, Int}
+    @test collect(Iterators.reverse(sv)) == b"pqrs"
+    @test Iterators.reverse(Iterators.reverse(sv)) === MemoryView(sv)
+end
+
+@testset "StaticView find" begin
+    sv = StaticView{6}(b"abcabc")
+    @test findfirst(==(UInt8('c')), sv) == 3
+    @test findnext(==(UInt8('a')), sv, 2) == 4
+    @test findnext(==(UInt8('d')), sv, 1) === nothing
+    @test findlast(==(UInt8('a')), sv) == 4
+    @test findprev(==(UInt8('c')), sv, 5) == 3
+    @test findfirst(iszero, sv) === nothing
+    @test findnext(isodd, sv, 2) == 3
+    @test findprev(isodd, sv, 2) == 1
+    @test findnext(==(3), StaticView{3}([1, 2, 3]), 1) == 3
+    @test_throws LightBoundsError findnext(==(UInt8('a')), sv, 0)
+    @test_throws LightBoundsError findprev(==(UInt8('a')), sv, 7)
+end
+
+@testset "StaticView splitting" begin
+    v = [1, 2, 3, 4]
+    sv = StaticView{4}(v)
+
+    (x, rest) = @inferred split_first(sv)
+    @test x == 1
+    @test rest isa MutableStaticView{3, Int}
+    @test rest == [2, 3, 4]
+    @test memoryref(rest) === memoryref(MemoryView(v)[2:4])
+    (x, rest) = @inferred split_last(sv)
+    @test x == 4
+    @test rest isa MutableStaticView{3, Int}
+    @test rest == [1, 2, 3]
+
+    one = StaticView{1}(["a"])
+    @test split_first(one)[1] == "a"
+    @test split_first(one)[2] isa MutableStaticView{0, String}
+    @test isempty(split_first(one)[2])
+    @test split_last(one)[2] isa MutableStaticView{0, String}
+    @test split_first(StaticView{2}("ab")) == (UInt8('a'), b"b")
+    @test split_first(StaticView{2}("ab"))[2] isa ImmutableStaticView{1, UInt8}
+    @test_throws LightBoundsError split_first(StaticView{0}(Int[]))
+    @test_throws LightBoundsError split_last(StaticView{0}(Int[]))
+
+    (a, b) = @inferred split_at(sv, 2)
+    @test a isa MutableMemoryView{Int}
+    @test (a, b) == ([1], [2, 3, 4])
+    @test_throws LightBoundsError split_at(sv, 6)
+    @test @inferred(MemoryViews.truncate(sv, 2)) isa MutableMemoryView{Int}
+    @test MemoryViews.truncate(sv, 2) == [1, 2]
+    @test_throws LightBoundsError MemoryViews.truncate(sv, 5)
+
+    bytes = StaticView{16}(MemoryView(collect(0x01:0x20)), 6)
+    for alignment in (8, Val(8))
+        (a, b) = split_unaligned(bytes, alignment)
+        @test a isa MutableMemoryView{UInt8}
+        @test (a, b) == split_unaligned(MemoryView(bytes), alignment)
+    end
+
+    parts = collect(split_each(StaticView{5}(b"ab,cd"), UInt8(',')))
+    @test parts == [b"ab", b"cd"]
+    @test eltype(parts) == ImmutableMemoryView{UInt8}
+end
+
+@testset "StaticView IO" begin
+    v = fill(0xaa, 7)
+    sv = StaticView{5}(MemoryView(v), 2)
+    @test readbytes!(IOBuffer("abcdefg"), sv) == 5
+    @test v == [0xaa, b"abcde"..., 0xaa]
+    @test readbytes!(IOBuffer("xy"), sv) == 2
+    @test v == [0xaa, b"xycde"..., 0xaa]
+    @test readbytes!(IOBuffer("123"), sv, 1) == 1
+    @test v == [0xaa, b"1ycde"..., 0xaa]
+    @test_throws MethodError readbytes!(IOBuffer("abcdefg"), sv, 6)
+    @test_throws Exception readbytes!(IOBuffer("abc"), StaticView{3}("abc"))
+end
+
 @testset "Integer arguments" begin
     for I in (Int8, Int32, Int128, UInt8, UInt, UInt128, BigInt)
         data = [10, 20, 30]
