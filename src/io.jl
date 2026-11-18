@@ -17,12 +17,13 @@ function _readbytes!(io::IO, v::MutableMemoryVector{UInt8}, nb::Integer)
     nb = Int(nb)::Int
     nb < 0 && throw(ArgumentError("Cannot read negative amount of bytes"))
     if nb > length(v)
-        if v isa MemoryView
-            # Oversized requests require resizing, which MemoryView does not support.
-            # Call `resize!` to report this with a MethodError before reading any bytes.
-            resize!(v, nb)
-        else
+        if v isa RefVector
             nb = length(v)
+        else
+            # Oversized requests require resizing, which MemoryView and StaticView
+            # do not support. Call `resize!` to report this with a MethodError
+            # before reading any bytes.
+            resize!(v, nb)
         end
     end
     # A view of all the bytes not yet read

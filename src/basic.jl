@@ -1,5 +1,5 @@
 """
-    Base.memoryref(x::Union{MutableMemoryView{T}, RefVector{T}})::MemoryRef{T}
+    Base.memoryref(x::Union{MutableMemoryView{T}, MutableStaticView{N, T}, RefVector{T}})::MemoryRef{T}
 
 Get the `MemoryRef` of `x`. This reference is guaranteed to be inbounds,
 except if `x` is empty, where it may point to one element past the end.
@@ -160,10 +160,10 @@ Base.@propagate_inbounds Base.view(v::MemoryView, idx::AbstractUnitRange) = v[id
 # Efficient way to get `mem[1:include_last]`.
 # include_last must be in 0:length(mem)
 """
-    truncate(v::MemoryView, to::Integer)::MemoryView
+    truncate(v::Union{MemoryView, StaticView}, to::Integer)::MemoryView
 
 Creates a new memory view from the beginning of `v`, and up to and including
-the index `to`. Returns the same type as the input `v`.
+the index `to`. Returns a `MemoryView` with the same mutability as `v`.
 Equivalent to `v[1:to]`, but may be more efficient.
 
 ```jldoctest
@@ -321,7 +321,7 @@ function memchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, UI
         p = @ccall memchr(
             ptr::Ptr{Cvoid},
             (byte % UInt8)::Cint,
-            length(mem)::Csize_t,
+            (length(mem) % Csize_t)::Csize_t,
         )::Ptr{Cvoid}
     end
     return p == C_NULL ? nothing : (p - ptr) % Int + 1
@@ -380,7 +380,7 @@ function memrchr(mem::ImmutableMemoryView{T}, byte::T) where {T <: Union{Int8, U
         p = @ccall memrchr(
             ptr::Ptr{Cvoid},
             (byte % UInt8)::Cint,
-            length(mem)::Csize_t,
+            (length(mem) % Csize_t)::Csize_t,
         )::Ptr{Cvoid}
     end
     return p == C_NULL ? nothing : (p - ptr) % Int + 1
@@ -402,7 +402,7 @@ function bitsequal(a, b)
     length(a) == length(b) || return false
     (eltype(a) === Union{} || Base.issingletontype(eltype(a))) && return true
     a.ref === b.ref && return true
-    nbytes = length(a) * sizeof(eltype(a))
+    nbytes = (length(a) * sizeof(eltype(a))) % Csize_t
     GC.@preserve a b begin
         aptr = Ptr{Nothing}(pointer(a))
         bptr = Ptr{Nothing}(pointer(b))
@@ -422,7 +422,7 @@ function Base.cmp(
             @ccall memcmp(
                 aptr::Ptr{Cvoid},
                 bptr::Ptr{Cvoid},
-                min(length(a), length(b))::Csize_t,
+                (min(length(a), length(b)) % Csize_t)::Csize_t,
             )::Cint
         end
     else
@@ -474,8 +474,10 @@ end
 
 """
     split_first(v::MemoryView{T}) -> Tuple{T, MemoryView{T}}
+    split_first(v::StaticView{N, T}) -> Tuple{T, StaticView{N-1, T}}
 
-Return the first element of `v` and all other elements as a new memory view.
+Return the first element of `v` and all other elements as a new view of the
+same kind as `v`.
 
 This function will throw a `LightBoundsError` if `v` is empty.
 
@@ -503,8 +505,10 @@ end
 
 """
     split_last(v::MemoryView{T}) -> Tuple{T, MemoryView{T}}
+    split_last(v::StaticView{N, T}) -> Tuple{T, StaticView{N-1, T}}
 
-Return the last element of `v` and all other elements as a new memory view.
+Return the last element of `v` and all other elements as a new view of the
+same kind as `v`.
 
 This function will throw a `LightBoundsError` if `v` is empty.
 

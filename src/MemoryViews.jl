@@ -3,6 +3,9 @@ module MemoryViews
 export MemoryView,
     RefVector,
     ImmutableMemoryView,
+    StaticView,
+    MutableStaticView,
+    ImmutableStaticView,
     MutableMemoryView,
     memory,
     split_each,
@@ -92,6 +95,89 @@ end
 const MutableMemoryView{T} = MemoryView{T, Mutable}
 const ImmutableMemoryView{T} = MemoryView{T, Immutable}
 
+"""
+    StaticView{N, T, M} <: DenseVector{T}
+
+A view of `N` contiguous elements of Julia-owned memory, where the length `N`
+is part of the type. Apart from that, it behaves like `MemoryView{T, M}`.
+The aliases `MutableStaticView{N, T}` and `ImmutableStaticView{N, T}` correspond
+to `StaticView{N, T, Mutable}` and `StaticView{N, T, Immutable}`.
+
+Like `NTuple{N, T}`, the length is the first type parameter, unlike
+in `MemoryView{T, M}`.
+
+Because the length is a compile time constant, operations on a `StaticView`
+need no runtime length checks, and the compiler may unroll and vectorize them.
+This makes `StaticView` useful for small views of a known length, such as keys,
+headers or chunks of data. Each distinct `N` causes a separate compilation of
+methods called on it, so avoid using many different lengths.
+
+Construct a `StaticView` with:
+* `StaticView{N}(x)`: View all elements of the memory-backed value `x`.
+  The element type `T` and mutability `M` are taken from `MemoryView(x)`.
+* `StaticView{N, T}(x)`, `MutableStaticView{N}(x)`, `ImmutableStaticView{N}(x)`
+  or `StaticView{N, T, M}(x)`: As above, but with `T` and/or `M` given explicitly.
+* `StaticView{N}(v::MemoryVector, start::Integer)`: View the `N` elements of `v`
+  beginning at index `start`.
+
+The constructors check that the input has the correct length, or that the
+indices `start:start+N-1` are in bounds. These checks can be removed with `@inbounds`.
+
+Operations whose resulting length is only known at runtime, such as indexing
+with a range, return a `MemoryView` instead of a `StaticView`, in order to
+remain type stable.
+Use the constructors above to create a new `StaticView` from a `MemoryView`.
+
+`StaticView{N, T, M}` is guaranteed to be immutable and to have the same size as
+a `MemoryRef{T}`.
+
+# Examples
+```jldoctest
+julia> mem = MemoryView([1, 2, 3, 4, 5]);
+
+julia> sv = StaticView{3}(mem, 2)
+3-element MutableStaticView{3, Int64}:
+ 2
+ 3
+ 4
+
+julia> split_first(sv)
+(2, [3, 4])
+
+julia> sv[2:3] # indexing with ranges returns a MemoryView
+2-element MutableMemoryView{Int64}:
+ 3
+ 4
+
+julia> ImmutableStaticView{2}([0x01, 0x02]) isa ImmutableStaticView{2, UInt8}
+true
+
+julia> StaticView{4}(mem)
+ERROR: DimensionMismatch: Expected input of length 4, got length 5
+[...]
+```
+"""
+struct StaticView{N, T, M <: Union{Mutable, Immutable}} <: DenseVector{T}
+    # If N is zero, there is no guarantee where the ref points to
+    ref::MemoryRef{T}
+
+    global function unsafe_new_staticview(::Type{M}, ::Val{N}, ref::MemoryRef{T}) where {M, N, T}
+        (M === Mutable || M === Immutable) ||
+            error("Parameter M must be Mutable or Immutable")
+        check_length_parameter(N)
+        return new{N, T, M}(ref)
+    end
+end
+
+function check_length_parameter(N)
+    return if !(N isa Int && N ≥ 0)
+        throw(ArgumentError("Length parameter N of StaticView must be a non-negative Int"))
+    end
+end
+
+const MutableStaticView{N, T} = StaticView{N, T, Mutable}
+const ImmutableStaticView{N, T} = StaticView{N, T, Immutable}
+
 # Base.memoryindex exists in Julia 1.13 onwards.
 @static if VERSION < v"1.13.0-DEV.1289"
     memoryrefindex(ref::MemoryRef) = Core.memoryrefoffset(ref)
@@ -144,9 +230,9 @@ To get the `MemoryRef` from an immutable `MemoryView`, use
 Base.memoryref(@nospecialize(x::MutableMemoryView)) = x.ref
 
 """
-    unsafe_memoryref(x::MemoryView{T})::MemoryRef{T}
+    unsafe_memoryref(x::Union{MemoryView{T}, StaticView{N, T}})::MemoryRef{T}
 
-Same as `memoryref(::MutableMemoryView)`, but also works for `ImmutableMemoryView`.
+Same as `memoryref(::MutableMemoryView)`, but also works for immutable views.
 Users must ensure only to mutate the resulting `MemoryRef` if `x` does not alias
 memory assumed to be immutable.
 
@@ -158,12 +244,12 @@ memory assumed to be immutable.
 unsafe_memoryref(@nospecialize(x::MemoryView)) = x.ref
 
 """
-    memory(v::MutableMemoryView{T})::Memory{T}
+    memory(v::Union{MutableMemoryView{T}, MutableStaticView{N, T}})::Memory{T}
 
 Get the entire `Memory` underlying `v`, including elements outside the view.
 The returned memory is shared with `v`, not copied.
 
-To get the underlying `Memory` from an immutable `MemoryView`, use
+To get the underlying `Memory` from an immutable view, use
 [`unsafe_memory`](@ref).
 
 # Examples
@@ -184,7 +270,7 @@ julia> v[1]
 memory(@nospecialize(v::MutableMemoryView)) = unsafe_memory(v)
 
 """
-    unsafe_memory(v::MemoryView{T})::Memory{T}
+    unsafe_memory(v::Union{MemoryView{T}, StaticView{N, T}})::Memory{T}
 
 Get the entire `Memory` underlying `v`, including elements outside the view.
 The returned memory is shared with `v`, not copied.
@@ -232,6 +318,7 @@ end
 include("refvector.jl")
 include("construction.jl")
 include("basic.jl")
+include("staticview.jl")
 include("delimited.jl")
 include("base_arrays.jl")
 include("io.jl")

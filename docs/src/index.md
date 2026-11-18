@@ -165,3 +165,48 @@ refvector = RefVector(memory)
 `RefVector` can be constructed from a `Memory`, in which case the input is used as the storage.
 Use `RefVector(ref)` or `RefVector{T}(ref::MemoryRef{T})` to construct one from a `MemoryRef`, aliasing the memory from the reference to the end of the underlying `Memory`.
 It also has a `RefVector{T}(undef, len::Int)` constructor, which is equivalent to `RefVector(Memory{T}(undef, len))`.
+
+### `StaticView` for views of a static length
+`StaticView{N, T, M}` is like `MemoryView{T, M}`, except that its length `N` is a type parameter.
+Like in `NTuple{N, T}`, the length is the first type parameter.
+Like with `MemoryView`, the aliases `MutableStaticView{N, T}` and `ImmutableStaticView{N, T}` are provided.
+
+Since the length is known at compile time, operations on a `StaticView` do not need to check its length at runtime, and the compiler may unroll and vectorize loops over it.
+For example, comparing two `StaticView{16, UInt8}` with `==` compiles to a few SIMD instructions, and `copyto!` between them compiles to a single 16-byte copy.
+The type is also one word smaller than `MemoryView`, since it does not store its length.
+
+Create a `StaticView` from any memory-backed value with `StaticView{N}(x)`, which checks that `x` has length `N`, or view `N` elements starting at index `i` with `StaticView{N}(v, i)`:
+
+```jldoctest
+mem = MemoryView([1, 2, 3, 4, 5, 6])
+sv = StaticView{4}(mem, 2)
+println(sv)
+println(typeof(sv))
+
+(first, rest) = split_first(sv)
+println(typeof(rest))
+
+# output
+[2, 3, 4, 5]
+MutableStaticView{4, Int64}
+MutableStaticView{3, Int64}
+```
+
+Operations where the length of the result is only known at runtime return a `MemoryView` instead.
+In particular, indexing a `StaticView` with a range returns a `MemoryView`, even if the range is constant.
+To get a `StaticView` of a part of a view, use the `StaticView{N}(v, i)` constructor:
+
+```jldoctest
+sv = StaticView{4}([1, 2, 3, 4])
+println(typeof(sv[2:3]))
+println(typeof(StaticView{2}(sv, 2)))
+
+# output
+MutableMemoryView{Int64}
+MutableStaticView{2, Int64}
+```
+
+The length and bounds checks of the `StaticView` constructors can be removed with `@inbounds`.
+
+Each distinct length `N` causes methods called on a `StaticView` to be compiled separately.
+Therefore, `StaticView` is best used for views of a few different, small lengths, such as keys or headers of a known size.
