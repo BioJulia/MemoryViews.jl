@@ -4,6 +4,8 @@ using MemoryViews
 using Aqua
 using StringViews: StringView
 using LibDeflate: LibDeflate
+using TranscodingStreams: NoopStream
+using BufferedStreams: BufferedInputStream
 using LightBoundsErrors: LightBoundsError
 
 using MemoryViews: DelimitedIterator, Mutable, Immutable
@@ -1344,6 +1346,40 @@ end
 
     @test iszero(readbytes!(IOBuffer(), refvector))
     @test_throws ArgumentError readbytes!(IOBuffer(data), refvector, -1)
+end
+
+@testset "Buffered IO" begin
+    data = rand(UInt8, 10_000)
+    # Small buffers, such that reading requires multiple refills
+    constructors = [
+        io -> NoopStream(io; bufsize = 16),
+        io -> BufferedInputStream(io, 16),
+    ]
+    for constructor in constructors
+        # Read across several buffer refills
+        io = constructor(IOBuffer(data))
+        v = fill(0xaa, 6000)
+        @test readbytes!(io, MemoryView(v)) == 6000
+        @test v == data[1:6000]
+
+        # Read with nb lower than the length, then until EOF
+        fill!(v, 0xaa)
+        @test readbytes!(io, MemoryView(v), 100) == 100
+        @test v == vcat(data[6001:6100], fill(0xaa, 5900))
+        @test readbytes!(io, MemoryView(v)) == 3900
+        @test v[1:3900] == data[6101:end]
+        @test iszero(readbytes!(io, MemoryView(v)))
+
+        # Oversized requests error without reading
+        io = constructor(IOBuffer(data))
+        @test_throws MethodError readbytes!(io, MemoryView(v), 6001)
+
+        # RefVector truncates oversized requests
+        refvector = RefVector(fill!(Memory{UInt8}(undef, 8), 0xaa))
+        @test readbytes!(io, refvector, 10) == 8
+        @test refvector == data[1:8]
+        @test_throws ArgumentError readbytes!(io, refvector, -1)
+    end
 end
 
 @testset "Base arrays" begin

@@ -4,6 +4,10 @@ Any new features, or breaking changes, will be written in this file.
 Bugfixes, internal refactors, documentation improvements and style changes will
 not be mentioned here, because they do not impact how the package is to be used.
 
+## 0.5.2
+* Fix ambiguity in `readbytes!(::TranscodingStreams.TranscodingStream,
+  ::MutableMemoryView)` with a package extension.
+
 ## 0.5.1
 * Fix ambiguity with AbstractPipeReader
 * Remove some invalidations
