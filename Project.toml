@@ -1,6 +1,6 @@
 name = "MemoryViews"
 uuid = "a791c907-b98b-4e44-8f4d-e4c2362c6b2f"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Jakob Nybo Andersen <jnandersen@proton.me>"]
 
 [deps]
@@ -10,11 +10,13 @@ LightBoundsErrors = "e21c612c-4641-4669-b9c3-3f4360ced9da"
 StringViews = "354b36f9-a18e-4713-926e-db85100087ba"
 FixedSizeArrays = "3821ddf9-e5b5-40d5-8e25-6813ab96b5e2"
 LibDeflate = "9255714d-24a7-4b30-8ea3-d46a97f7e13b"
+TranscodingStreams = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 
 [extensions]
 StringViewsExt = "StringViews"
 FixedSizeArraysExt = "FixedSizeArrays"
 LibDeflateExt = "LibDeflate"
+TranscodingStreamsExt = "TranscodingStreams"
 
 [compat]
 Aqua = "0.8.7"
@@ -23,13 +25,17 @@ FixedSizeArrays = "1"
 LibDeflate = "0.4, 1"
 LightBoundsErrors = "1.1"
 Test = "1.11"
+TranscodingStreams = "0.11"
+BufferedStreams = "1"
 julia = "1.11"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+BufferedStreams = "e1450e63-4bb3-523b-b2a4-4ffa8c0fd77d"
 FixedSizeArrays = "3821ddf9-e5b5-40d5-8e25-6813ab96b5e2"
 StringViews = "354b36f9-a18e-4713-926e-db85100087ba"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TranscodingStreams = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 
 [targets]
-test = ["Aqua", "FixedSizeArrays", "StringViews", "Test", "LibDeflate"]
+test = ["Aqua", "BufferedStreams", "FixedSizeArrays", "StringViews", "Test", "LibDeflate", "TranscodingStreams"]
